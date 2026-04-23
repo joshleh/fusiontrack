@@ -1,6 +1,6 @@
 # FusionTrack
 
-Multi-sensor UAV tracking in 2D by fusing **simulated radar** (range, azimuth with miss and false-alarm behavior) and **simulated camera** (noisy bounding-box centers in pixels) through both a **linear KF** (Cartesian radar) and a **true Extended Kalman Filter** (native polar radar with analytic Jacobian). This repository is a portfolio-quality **math + simulation** slice: no API server, no Docker, no experiment tracking yet.
+Multi-sensor UAV tracking in 2D — single-object EKF fusion and **multi-object tracking** with Hungarian data association and Mahalanobis gating. Fuses **simulated radar** (range, azimuth, misses, false alarms) and **simulated camera** (noisy pixels, structured occlusion) through a linear KF and a true Extended Kalman Filter with native polar measurements.
 
 ## What to run
 
@@ -9,20 +9,26 @@ python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-End-to-end fusion with two Matplotlib figures (trajectory + error, with occlusion shading):
+Single-object EKF fusion (trajectory + error figures, occlusion shading):
 
 ```bash
 cd /path/to/fusiontrack
 python -m src.fusion
 ```
 
-Unit tests (14 cases: KFTracker predict/update/PSD/ellipse + EKFTracker polar update, angle wrapping, covariance calibration):
+Multi-object tracker demo (3 crossing targets, Hungarian assignment):
+
+```bash
+python -m src.mot
+```
+
+Unit tests (25 cases — KFTracker, EKFTracker, and TrackerManager lifecycle/gating):
 
 ```bash
 pytest tests/ -q
 ```
 
-Pedagogical notebook (step-by-step prints and occlusion discussion):
+Pedagogical notebook (step-by-step prints, inline plots, cov-trace panel):
 
 ```bash
 jupyter notebook notebooks/01_fusion_demo.ipynb
@@ -32,10 +38,12 @@ jupyter notebook notebooks/01_fusion_demo.ipynb
 
 | Path | Role |
 |------|------|
-| `src/ekf.py` | `KFTracker` (linear KF) and `EKFTracker` (polar EKF) — predict, update, covariance, ellipse |
+| `src/ekf.py` | `KFTracker` (linear KF) and `EKFTracker` (polar EKF) — predict, update, covariance, ellipse, `compute_innovation_polar` for gating |
 | `src/radar_sim.py` | Polar returns with Gaussian noise, misses, false alarms |
 | `src/camera_sim.py` | Pixel centers with noise, stochastic misses, occlusion window |
-| `src/fusion.py` | Synthetic trajectory, four parallel trackers (EKF fused / KF fused / camera-only / radar-only) |
+| `src/fusion.py` | Single-object demo: 4 parallel trackers (EKF fused / KF fused / camera-only / radar-only) |
+| `src/mot.py` | **Multi-Object Tracker** — `TrackerManager`, `Track`, `TrackState`; GNN + Mahalanobis gating; demo + plot |
+| `src/mot_sim.py` | 3-target crossing scenario + Poisson clutter generation |
 | `src/utils.py` | Pixel ↔ world scaling, polar ↔ Cartesian |
 | `docs/ekf_explainer.md` | Matrix cheat-sheet (placeholders for your interview notes) |
 
@@ -55,3 +63,17 @@ The EKF radar update avoids the linearization error that the Cartesian approxima
 - Angle wrapping in the innovation ($y_\theta \in (-\pi, \pi]$) is mandatory whenever a bearing appears; identical issue in SLAM, GPS/compass fusion, quaternion EKF.
 - Sequential two-update-per-frame (camera then radar) is *not* equivalent to a single joint update unless measurements are conditionally independent given the state — acceptable for tutorial; production uses gating + MHT.
 - `tr(P)` shrinks after a good update, but it is not a geometric “area” — use NEES or the full ellipse for consistency checking.
+
+## Multi-Object Tracking (MOT)
+
+`src/mot.py` implements a **Global Nearest-Neighbour (GNN)** tracker on top of the EKFTracker:
+
+| Component | Implementation | Interview depth |
+|-----------|---------------|-----------------|
+| Gate | Mahalanobis distance² in polar measurement space: $d^2 = y^T S^{-1} y$, $S = H P H^T + R_{\text{polar}}$; chi-square 99% threshold (2 DOF ≈ 9.21) | Too tight → valid targets lost; too loose → clutter absorbed |
+| Assignment | `scipy.optimize.linear_sum_assignment` (Hungarian / Jonker-Volgenant, O(n³)) | JPDA maintains soft weights; MHT maintains a hypothesis tree |
+| Birth | Unmatched measurement → TENTATIVE track with zero velocity, large $P_v$ | One detection never confirms — clutter blips die in ≤3 frames |
+| Death | CONFIRMED track with ≥3 consecutive misses → DELETED | Tuning max_misses trades ID switches for ghost tracks |
+| Scenario | 3 straight CV targets that converge within ~9 m of each other at frame 49 (crossing stress-test) + Poisson(0.5) clutter per frame | At the crossing: two tracks are inside each other's chi-square gate; Hungarian finds the globally optimal one-shot assignment |
+
+**What GNN cannot handle well:** closely spaced crossing targets in high clutter (JPDA), track fragmentation after long occlusion (MHT), multi-sensor joint measurement origin (probabilistic FISST). These are the natural follow-ons to this implementation.

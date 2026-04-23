@@ -455,3 +455,23 @@ class EKFTracker:
             height=height,
             angle_deg=angle_deg,
         )
+
+    def compute_innovation_polar(
+        self, z_polar: NDArray[np.float64]
+    ) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
+        """
+        Return ``(y, S)`` — innovation and 2×2 innovation covariance for a polar measurement.
+
+        Call this **after** ``predict()`` but **before** ``update_radar_polar()`` to obtain
+        the predicted residual used by multi-object trackers for Mahalanobis gating.
+
+        y = z − h(x_pred)  (angle-wrapped)
+        S = H(x_pred) P_pred H(x_pred)^T + R_polar
+        """
+        x = self._kf.x
+        hx = _h_radar_polar(x)                   # (2, 1)
+        H = _h_radar_polar_jacobian(x)            # (2, 4)
+        P = self._kf.P                            # (4, 4)
+        S = H @ P @ H.T + self._R_radar_polar     # (2, 2)
+        y = _radar_polar_residual(z_polar.reshape(2, 1), hx)  # (2, 1)
+        return y, S

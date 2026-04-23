@@ -128,16 +128,6 @@ def polar_to_world_xy(
     )
 
 
-@dataclass
-class TrackObservations:
-    """
-    A batch container used by the fusion loop: per-frame *lists* to keep the door
-    open for later multi-returns (not used for association yet).
-    """
-
-    polars: List[Optional[PolarRadarReturn]]
-
-
 def run_radar_on_trajectory(
     true_xy: NDArray[np.float64],
     rng: Generator,

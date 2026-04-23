@@ -110,6 +110,9 @@ def run_fusion_demo(
     """
     rng = rng or default_rng(DEMO_RNG_SEED)
     true_xy = _make_smooth_curved_trajectory(TRAJECTORY_NUM_FRAMES)
+    # Both simulators share the same rng stream for whole-scene determinism.
+    # INTERVIEW: this means camera drains RNG first, then radar; a true per-sensor
+    # ablation experiment would use independent streams (default_rng(seed).spawn(2)).
     radar_list = radar_sim.run_radar_on_trajectory(true_xy, rng)
     cam_list = camera_sim.run_camera_on_trajectory(true_xy, rng)
 
