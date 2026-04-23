@@ -1,5 +1,5 @@
 """
-End-to-end single-target fusion: synthetic trajectory, parallel simulators, EKF triplet.
+End-to-end single-target fusion: synthetic trajectory, parallel simulators, three KF tracks.
 
 This module is the *glue* the portfolio story rests on. It exists so a reviewer
 can run one command and see measurement gaps, process noise, and covariance
@@ -23,15 +23,17 @@ from . import camera_sim, ekf, radar_sim, utils
 # ---------------------------------------------------------------------------
 # Length of the synthetic run (frames); matches portfolio brief.
 TRAJECTORY_NUM_FRAMES: Final[int] = 100
-# Time between frames (seconds) — EKF, radar, and camera share the same clock.
+# Time between frames (seconds) — filter, radar, and camera share the same clock.
 FUSION_FRAME_DT_S: Final[float] = ekf.DEFAULT_DT_S
 # World box for the path (meters) — UAS in a 500m local tangent patch.
 TRAJECTORY_WORLD_MIN_M: Final[float] = 0.0
 TRAJECTORY_WORLD_MAX_M: Final[float] = 500.0
 # Path parameter sweep for the smooth curve: controls how many "lobes" appear.
 TRAJECTORY_SIN_SCALE_RAD: Final[float] = 0.12
-# Initial velocity prior noise when bootstrapping from the first *two* ground-truth samples.
-INIT_VELOCITY_ERROR_STD: Final[float] = 0.1
+# Initial velocity error (m/s) on top of a finite-difference trim from the first
+# two ground-truth samples — *cold-start* is intentionally imperfect so early frames
+# show real convergence; values like 0.1 m/s were too oracle-like.
+INIT_VELOCITY_ERROR_STD: Final[float] = 2.0
 # Random seed for a repeatable demo; change for new Monte-Carlo runs.
 DEMO_RNG_SEED: Final[int] = 7
 # Frame indices at which to draw error ellipses for clarity
@@ -39,9 +41,12 @@ ELLIPSE_FRAME_STEP: Final[int] = 10
 # Shaded occlusion window for the RMSE panel (inclusive) — same as camera_sim
 PLOT_OCCLUSION_START: Final[int] = camera_sim.CAMERA_OCCLUSION_START_FRAME
 PLOT_OCCLUSION_END: Final[int] = camera_sim.CAMERA_OCCLUSION_END_FRAME
-# World-frame *measurement* noise used by the EKF for radar (m^2 per axis) —
-# set between 3–5m 1-σ; INTERVIEW: real R is gate-dependent after polar->Cart
-RADAR_EKF_CARTESIAN_VAR_M2: Final[float] = 4.0**2
+# Per-axis world variance for radar (m²). 2.0 m 1-σ → 4.0 m², **tighter** than
+# camera: ~4 m 1-σ (from 8 px × 0.5 m/px) → 16 m² — so fusion can lean on range/azimuth
+# when the camera is noisy or missing. (Real R is state-dependent after polar; this is a knob.)
+# INTERVIEW: if camera and radar R were numerically equal, you would not have a *sensor*
+# story — you would be testing geometry only.
+RADAR_MEASUREMENT_VAR_M2: Final[float] = 2.0**2
 # Camera: map pixel σ to a full 2x2 R via utils (8 px 1-σ in each direction)
 
 
@@ -71,8 +76,9 @@ def _initial_state_from_ground_truth(
 ) -> NDArray[np.float64]:
     """
     Seed ``[x, y, vx, vy]`` from the first two ground-truth samples so the very
-    first velocity is physically aligned with the synthetic path, plus tiny
-    random jitter to avoid perfect oracle initialization.
+    first velocity is physically aligned with the synthetic path, plus
+    :data:`INIT_VELOCITY_ERROR_STD` to simulate a non-oracle handoff from a
+    first-stage tracker or operator cue.
     """
     p0 = true_xy[0, :2]
     p1 = true_xy[1, :2]
@@ -87,7 +93,7 @@ def run_fusion_demo(
     """
     Run the *full* single-target fusion experiment and return a dict for plotting/JSON.
 
-    The routine wires up three :class:`ekf.EKFTracker` objects:
+    The routine wires up three :class:`ekf.KFTracker` objects:
     *fused* (camera+radar when available), *camera-only*, and *radar-only*.
     Each time step applies ``predict()``, then zero, one, or two measurement
     updates depending on simulator output.
@@ -100,21 +106,21 @@ def run_fusion_demo(
     radar_list = radar_sim.run_radar_on_trajectory(true_xy, rng)
     cam_list = camera_sim.run_camera_on_trajectory(true_xy, rng)
 
-    # Measurement noise in world for the EKF, consistent with the camera sim
+    # R_camera: from pixel 1-σ; R_radar: tighter (see module constants above)
     r_cam = utils.pixel_noise_to_world_covariance(
         camera_sim.CAMERA_CENTER_NOISE_STD_PX,
         camera_sim.CAMERA_CENTER_NOISE_STD_PX,
     )
-    r_radar = np.eye(2, dtype=np.float64) * RADAR_EKF_CARTESIAN_VAR_M2
+    r_radar = np.eye(2, dtype=np.float64) * RADAR_MEASUREMENT_VAR_M2
 
     x0 = _initial_state_from_ground_truth(true_xy, FUSION_FRAME_DT_S, rng)
-    fused = ekf.EKFTracker(
+    fused = ekf.KFTracker(
         x0, dt=FUSION_FRAME_DT_S, r_camera=r_cam, r_radar=r_radar
     )
-    cam_kf = ekf.EKFTracker(
+    cam_kf = ekf.KFTracker(
         x0, dt=FUSION_FRAME_DT_S, r_camera=r_cam, r_radar=r_radar
     )
-    rad_kf = ekf.EKFTracker(
+    rad_kf = ekf.KFTracker(
         x0, dt=FUSION_FRAME_DT_S, r_camera=r_cam, r_radar=r_radar
     )
 
@@ -222,7 +228,7 @@ def plot_results(
         color="C1",
         linestyle="--",
         linewidth=1.2,
-        label="Camera-only EKF",
+        label="Camera-only KF",
     )
     ax.plot(
         r_only[:, 0],
@@ -230,7 +236,7 @@ def plot_results(
         color="C2",
         linestyle=":",
         linewidth=1.2,
-        label="Radar-only EKF",
+        label="Radar-only KF",
     )
     for _frame, ell in res.get("uncertainty_ellipses", []):
         e = Ellipse(

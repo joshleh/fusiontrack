@@ -1,3 +1,3 @@
 """
-FusionTrack core: EKF fusion, simulators, and coordinate utilities.
+FusionTrack core: linear Kalman fusion, simulators, and coordinate utilities.
 """

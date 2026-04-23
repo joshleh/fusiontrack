@@ -1,11 +1,14 @@
 """
-Extended (linearized) position-state Kalman filter wrapper for 2D constant-velocity motion.
+Linear position-state **Kalman** filter for 2D constant-velocity motion.
 
-The core dynamics are linear, so the transition uses :class:`filterpy.kalman.KalmanFilter`
-directly. Camera and radar both produce Cartesian position measurements with
-potentially different noise covariances. Using Cartesian radar after polar->Cartesian
-conversion is a *linear* measurement model; this is a common engineering
-approximation when error ellipses are small relative to range.
+**Naming:** the class is :class:`KFTracker` (linear Kalman), not a true Extended Kalman
+Filter. The file name ``ekf.py`` is kept as a short handle; a future
+:class:`filterpy.kalman.ExtendedKalmanFilter` in native polar $h(x)$ can live
+alongside or replace this when you want the project name "EKF" to match the math.
+
+The transition uses :class:`filterpy.kalman.KalmanFilter` directly. Camera and radar
+each supply Cartesian world $(x, y)$ with different $R$ — built in ``fusion`` from
+pixel noise and from a tighter world variance for radar.
 
 # INTERVIEW CRITICAL: True polar measurements are nonlinear in state; a full EKF
 # would use h(x)=[range, az] and Jacobians, or a UKF. Linear KF in Cartesian
@@ -39,11 +42,11 @@ SIGMA_ACCEL_M_S2: Final[float] = 0.25
 # Default initial position variance (m^2) and velocity variance (m^2/s^2) on the diagonal of P0.
 INIT_POS_VAR_M2: Final[float] = 25.0
 INIT_VEL_VAR_M2S2: Final[float] = 4.0
-# Default measurement noise (m^2) for camera (position in world) after pixel mapping.
-# ~10–15px spec -> converted in fusion from utils; we keep a reasonable default in world units.
+# Default camera: ~8 px 1-σ in ``utils`` → ~4 m 1-σ in world (METERS_PER_PIXEL=0.5) → 16 m².
 R_CAMERA_DEFAULT_M2: Final[float] = 16.0
-# Default radar Cartesian measurement variance (m^2) on each axis after polar->world.
-R_RADAR_DEFAULT_M2: Final[float] = 16.0
+# Default radar: **tighter** than camera — ~2 m 1-σ per axis in world; keep in sync
+# with :data:`fusion.RADAR_MEASUREMENT_VAR_M2`.
+R_RADAR_DEFAULT_M2: Final[float] = 2.0**2
 # 95% chi-square with 2 DOF (position plane); used for axis scaling of the ellipse
 CHI2_95_2D: Final[float] = 5.991
 
@@ -107,13 +110,15 @@ def _h_position() -> NDArray[np.float64]:
     )
 
 
-class EKFTracker:
+class KFTracker:
     """
-    Track a single 2D target in world coordinates with a linear Kalman filter
-    (constant-velocity process, position measurements).
+    Track a single 2D target in world coordinates with a **linear** Kalman filter
+    (constant-velocity process, position-only measurements for camera and radar).
 
-    Why this exists: centralizes F, H, Q, and two measurement noise regimes so
-    the fusion layer only passes measurements and R overrides.
+    Why this exists: centralizes F, H, Q, and two sensor-specific $R$ matrices so
+    fusion only passes measurements and optional overrides. Radar $R$ is set **smaller**
+    than the camera in ``fusion`` to reflect the simulator’s meter-class range/azimuth
+    noise when mapped to a diagonal world $R$ (a modeling choice, not a physical identity).
 
     Parameters
     ----------

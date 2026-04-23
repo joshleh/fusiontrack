@@ -37,7 +37,7 @@ def polar_to_cartesian(
     Convert a radar-style polar measurement to flat world (East-North) Cartesian.
 
     What this does: maps ``(range, azimuth)`` about a local origin to ``(x, y)``
-    in the same 2D world frame as the EKF. Azimuth is measured from +x toward +y
+    in the same 2D world frame as the Kalman state. Azimuth is measured from +x toward +y
     (mathematical CCW) so it matches the usual ENU-style convention in code.
 
     Parameters
@@ -88,7 +88,7 @@ def world_meters_to_pixel(u_m: float, v_m: float) -> Tuple[float, float]:
 def pixel_to_world_meters(u_px: float, v_px: float) -> Tuple[float, float]:
     """
     Invert :func:`world_meters_to_pixel` to recover world coordinates from a
-    noisy box center. Used before camera updates in the EKF.
+    noisy box center. Used before camera updates in the KF.
     """
     u_m = (u_px - PRINCIPAL_U_PX) * METERS_PER_PIXEL
     v_m = (v_px - PRINCIPAL_V_PX) * METERS_PER_PIXEL

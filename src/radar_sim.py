@@ -76,7 +76,7 @@ def radar_measurement_from_true_position(
     Parameters
     ----------
     true_x, true_y
-        True target world position in meters, same frame as the EKF.
+        True target world position in meters, same frame as the KF.
     rng
         NumPy ``Generator`` for reproducible sequences.
     """

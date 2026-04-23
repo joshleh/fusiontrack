@@ -1,4 +1,4 @@
-# EKF + Kalman: matrix cheat‑sheet (fill in your interview voice)
+# Linear Kalman (CV) + fusion: matrix cheat‑sheet (fill in your interview voice)
 
 > **Placeholder doc**: complete each [TODO: …] in your own words before sharing externally.
 

@@ -27,7 +27,7 @@ CAMERA_DETECTION_MISS_PROB: Final[float] = 0.10
 # Inclusive frame index range [start, end] with *no* camera returns — simulates buildings/self-occlusion
 CAMERA_OCCLUSION_START_FRAME: Final[int] = 40
 CAMERA_OCCLUSION_END_FRAME: Final[int] = 60
-# Synthetic full box size (pixels) — only used for a complete box record; center is what the EKF consumes
+# Synthetic full box size (pixels) — only used for a complete box record; center is what the KF consumes
 DEFAULT_BOX_WIDTH_PX: Final[float] = 48.0
 DEFAULT_BOX_HEIGHT_PX: Final[float] = 36.0
 
@@ -37,7 +37,7 @@ class CameraPixelBox:
     """
     A bounding box in pixel space: center ``(u, v)`` plus size.
 
-    *Why* this exists: portfolio code can log the full box even if the EKF only
+    *Why* this exists: portfolio code can log the full box even if the KF only
     needs the center for a position-only measurement model.
     """
 
