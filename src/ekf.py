@@ -1,27 +1,31 @@
 """
-Linear position-state **Kalman** filter for 2D constant-velocity motion.
+Kalman filter trackers for 2D constant-velocity single-target tracking.
 
-**Naming:** the class is :class:`KFTracker` (linear Kalman), not a true Extended Kalman
-Filter. The file name ``ekf.py`` is kept as a short handle; a future
-:class:`filterpy.kalman.ExtendedKalmanFilter` in native polar $h(x)$ can live
-alongside or replace this when you want the project name "EKF" to match the math.
+Two classes live here side-by-side so the portfolio can compare them directly:
 
-The transition uses :class:`filterpy.kalman.KalmanFilter` directly. Camera and radar
-each supply Cartesian world $(x, y)$ with different $R$ — built in ``fusion`` from
-pixel noise and from a tighter world variance for radar.
+* :class:`KFTracker` — **linear** KF, both sensors use a Cartesian position H.
+  Radar is pre-converted from polar before update, so R is a diagonal world
+  covariance — a modeling approximation.
 
-# INTERVIEW CRITICAL: True polar measurements are nonlinear in state; a full EKF
-# would use h(x)=[range, az] and Jacobians, or a UKF. Linear KF in Cartesian
-# with diagonal R is a bias-prone but interview-defensible first cut for short range.
+* :class:`EKFTracker` — **Extended** KF, radar measurements stay in native polar
+  $(r, \\theta)$ and pass through a nonlinear ``h(x)`` with its 2×4 analytic
+  Jacobian and an angle-normalizing residual.  Camera is still a linear H (it
+  already lives in world Cartesian) so the two sensors genuinely differ.
+
+# INTERVIEW CRITICAL: The KF/Cartesian-radar path is bias-prone when azimuth error
+# converts to a large cross-range offset at long range.  The EKF uses the correct
+# (r, θ) measurement model, so its innovation covariance S reflects actual polar
+# geometry and the Kalman gain is better conditioned.
 """
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
-from typing import Final, Optional, Tuple
+from typing import Callable, Final, Optional, Tuple
 
 import numpy as np
-from filterpy.kalman import KalmanFilter
+from filterpy.kalman import ExtendedKalmanFilter, KalmanFilter
 from numpy.typing import NDArray
 
 # ---------------------------------------------------------------------------
@@ -44,9 +48,16 @@ INIT_POS_VAR_M2: Final[float] = 25.0
 INIT_VEL_VAR_M2S2: Final[float] = 4.0
 # Default camera: ~8 px 1-σ in ``utils`` → ~4 m 1-σ in world (METERS_PER_PIXEL=0.5) → 16 m².
 R_CAMERA_DEFAULT_M2: Final[float] = 16.0
-# Default radar: **tighter** than camera — ~2 m 1-σ per axis in world; keep in sync
-# with :data:`fusion.RADAR_MEASUREMENT_VAR_M2`.
+# Default radar (Cartesian KF): **tighter** than camera — ~2 m 1-σ per axis in world.
+# Keep in sync with :data:`fusion.RADAR_MEASUREMENT_VAR_M2`.
 R_RADAR_DEFAULT_M2: Final[float] = 2.0**2
+# EKF polar radar R: physical noise in (range, azimuth) space.
+# These MUST mirror radar_sim.RADAR_RANGE_NOISE_STD_M and RADAR_AZIMUTH_NOISE_STD_RAD
+# (duplicated here to keep ekf.py import-free from sensor modules).
+# INTERVIEW CRITICAL: R_polar = diag([σ_r², σ_θ²]) encodes *native* sensor error; the
+# KF Cartesian approximation smears anisotropic polar noise into an isotropic world blob.
+RADAR_RANGE_NOISE_STD_EKF_M: Final[float] = 3.0
+RADAR_AZIMUTH_NOISE_STD_EKF_RAD: Final[float] = float(np.radians(0.5))
 # 95% chi-square with 2 DOF (position plane); used for axis scaling of the ellipse
 CHI2_95_2D: Final[float] = 5.991
 
@@ -228,6 +239,215 @@ class KFTracker:
         v = evecs[:, order[0]]
         angle_rad = float(np.arctan2(v[1], v[0]))
         angle_deg = float(np.degrees(angle_rad))
+        mean = self.get_state()[:2]
+        return UncertaintyEllipse2D(
+            center=(float(mean[0]), float(mean[1])),
+            width=width,
+            height=height,
+            angle_deg=angle_deg,
+        )
+
+
+# ---------------------------------------------------------------------------
+# EKF polar-radar measurement functions (module-level, stateless)
+# ---------------------------------------------------------------------------
+
+def _h_radar_polar(x: NDArray[np.float64]) -> NDArray[np.float64]:
+    """Nonlinear measurement h(x) = [[range], [azimuth]] (2×1 column) from state [px, py, vx, vy].
+
+    filterpy's EKF computes ``x += K @ (z - h(x))``; returning a (2,1) column vector
+    keeps the shapes consistent with K (4,2) and z (2,1) so no spurious broadcasting occurs.
+
+    Guard: clamp range at 1 µm to avoid undefined azimuth at the radar origin.
+    """
+    px, py = float(x.flat[0]), float(x.flat[1])
+    r = max(math.hypot(px, py), 1e-6)
+    az = math.atan2(py, px)
+    return np.array([[r], [az]], dtype=np.float64)
+
+
+def _h_radar_polar_jacobian(x: NDArray[np.float64]) -> NDArray[np.float64]:
+    """
+    Analytic 2×4 Jacobian of h(x) = [r, az] w.r.t. state [px, py, vx, vy].
+
+    ∂r/∂px  = px/r        ∂r/∂py  = py/r       ∂r/∂vx = ∂r/∂vy = 0
+    ∂az/∂px = -py/r²      ∂az/∂py = px/r²      ∂az/∂vx = ∂az/∂vy = 0
+
+    # INTERVIEW CRITICAL: This is the linearization point — the Jacobian is
+    # evaluated at the *predicted* state, so errors grow for large prediction
+    # steps or highly curved paths.  A UKF avoids this by sigma-point integration.
+    """
+    px, py = float(x.flat[0]), float(x.flat[1])
+    r2 = max(px ** 2 + py ** 2, 1e-12)
+    r = math.sqrt(r2)
+    return np.array(
+        [
+            [px / r,   py / r,  0.0, 0.0],
+            [-py / r2, px / r2, 0.0, 0.0],
+        ],
+        dtype=np.float64,
+    )
+
+
+def _h_camera_linear(x: NDArray[np.float64]) -> NDArray[np.float64]:
+    """Linear camera h(x) = [[px], [py]] (2×1 column) — consistent with KFTracker."""
+    return np.array([[float(x.flat[0])], [float(x.flat[1])]], dtype=np.float64)
+
+
+def _h_camera_jacobian(x: NDArray[np.float64]) -> NDArray[np.float64]:  # noqa: ARG001
+    """Constant 2×4 Jacobian for the linear camera model."""
+    return np.array(
+        [[1.0, 0.0, 0.0, 0.0],
+         [0.0, 1.0, 0.0, 0.0]],
+        dtype=np.float64,
+    )
+
+
+def _radar_polar_residual(
+    z: NDArray[np.float64], hx: NDArray[np.float64]
+) -> NDArray[np.float64]:
+    """
+    Innovation y = z − h(x) with azimuth component wrapped to (−π, π].
+
+    Both z and hx arrive as (2,1) column vectors; the result is also (2,1) so
+    K @ y gives (4,1) and the state update preserves the (4,1) shape of self.x.
+
+    Without wrapping, a target near azimuth ±π causes a ~2π innovation that
+    drives the gain and state update wildly; wrapping makes the residual
+    geometrically correct regardless of the ±π seam.
+
+    # INTERVIEW CRITICAL: angle wrapping is mandatory for any bearing/heading
+    # innovation — identical issue arises in GPS/compass fusion and SLAM.
+    """
+    y = np.subtract(z, hx).reshape(2, 1)
+    y[1, 0] = (y[1, 0] + np.pi) % (2.0 * np.pi) - np.pi
+    return y
+
+
+class EKFTracker:
+    """
+    Single-target 2D tracker with a **true Extended Kalman Filter** for radar.
+
+    Radar measurements arrive in native polar ``(range_m, azimuth_rad)`` and are
+    processed through:
+
+    * ``h(x) = [√(px²+py²),  atan2(py, px)]`` — nonlinear forward model
+    * analytic 2×4 Jacobian evaluated at the predicted state
+    * angle-normalizing residual to handle the ±π seam
+
+    Camera measurements remain linear ``h(x) = [px, py]`` (they are already in
+    world Cartesian after the pixel → meter mapping in ``utils``).
+
+    The process model (constant-velocity F, Q) is identical to :class:`KFTracker`
+    so the two classes are directly comparable in ``fusion.py``.
+
+    Parameters
+    ----------
+    initial_state
+        4-vector ``[x, y, vx, vy]`` in world metres / m s⁻¹.
+    dt
+        Frame period in seconds.
+    r_camera
+        2×2 camera measurement noise (world metres²).  Defaults to diagonal
+        ``R_CAMERA_DEFAULT_M2 * I``.
+    r_radar_polar
+        2×2 polar measurement noise ``diag([σ_r², σ_θ²])``.  Defaults to the
+        physical noise constants :data:`RADAR_RANGE_NOISE_STD_EKF_M` and
+        :data:`RADAR_AZIMUTH_NOISE_STD_EKF_RAD`.
+    """
+
+    def __init__(
+        self,
+        initial_state: NDArray[np.float64],
+        *,
+        dt: float = DEFAULT_DT_S,
+        r_camera: Optional[NDArray[np.float64]] = None,
+        r_radar_polar: Optional[NDArray[np.float64]] = None,
+    ) -> None:
+        self._dt = float(dt)
+        self._kf: ExtendedKalmanFilter = ExtendedKalmanFilter(dim_x=4, dim_z=2)
+        self._kf.F = _build_f_cv(self._dt)
+        self._kf.Q = _build_q_cv(self._dt, SIGMA_ACCEL_M_S2)
+        self._kf.x = initial_state.reshape((4, 1)).astype(np.float64)
+        self._kf.P = np.diag(
+            [INIT_POS_VAR_M2, INIT_POS_VAR_M2, INIT_VEL_VAR_M2S2, INIT_VEL_VAR_M2S2]
+        ).astype(np.float64)
+        if r_camera is None:
+            r_camera = R_CAMERA_DEFAULT_M2 * np.eye(2, dtype=np.float64)
+        if r_radar_polar is None:
+            r_radar_polar = np.diag(
+                [RADAR_RANGE_NOISE_STD_EKF_M ** 2, RADAR_AZIMUTH_NOISE_STD_EKF_RAD ** 2]
+            ).astype(np.float64)
+        self._R_camera: NDArray[np.float64] = np.asarray(r_camera, dtype=np.float64)
+        self._R_radar_polar: NDArray[np.float64] = np.asarray(r_radar_polar, dtype=np.float64)
+        # filterpy EKF keeps self.R but we override it per update; set a placeholder
+        self._kf.R = self._R_camera
+
+    def predict(self) -> None:
+        """Propagate mean and covariance one step via the linear CV model."""
+        self._kf.predict()
+
+    def update_camera(
+        self, z_xy: NDArray[np.float64], r_override: Optional[NDArray[np.float64]] = None
+    ) -> None:
+        """
+        Incorporate a camera position measurement ``[x_world, y_world]`` (metres).
+
+        Uses the linear camera Jacobian — equivalent to the standard KF update.
+        z is passed as a (2,1) column to keep K@(z-h(x)) shapes consistent with (4,1) self.x.
+        """
+        r = self._R_camera if r_override is None else r_override
+        self._kf.update(
+            z_xy.reshape(2, 1).astype(np.float64),
+            HJacobian=_h_camera_jacobian,
+            Hx=_h_camera_linear,
+            R=r,
+        )
+
+    def update_radar_polar(
+        self,
+        z_polar: NDArray[np.float64],
+        r_override: Optional[NDArray[np.float64]] = None,
+    ) -> None:
+        """
+        Incorporate a **polar** radar measurement ``[range_m, azimuth_rad]``.
+
+        Do **not** pre-convert to Cartesian — the whole point of the EKF is to
+        use the native sensor frame so R stays physically meaningful.
+        z is passed as a (2,1) column; _radar_polar_residual also returns (2,1).
+        """
+        r = self._R_radar_polar if r_override is None else r_override
+        self._kf.update(
+            z_polar.reshape(2, 1).astype(np.float64),
+            HJacobian=_h_radar_polar_jacobian,
+            Hx=_h_radar_polar,
+            R=r,
+            residual=_radar_polar_residual,
+        )
+
+    def get_state(self) -> NDArray[np.float64]:
+        """Posterior mean ``[x, y, vx, vy]`` as a 1D array."""
+        return self._kf.x.reshape(4).copy()
+
+    def get_covariance(self) -> NDArray[np.float64]:
+        """Full 4×4 state covariance (posterior)."""
+        return self._kf.P.copy()
+
+    def get_position_covariance_2d(self) -> NDArray[np.float64]:
+        """2×2 position-plane covariance block."""
+        return self._kf.P[0:2, 0:2].copy()
+
+    def get_uncertainty_ellipse(self) -> UncertaintyEllipse2D:
+        """95% confidence ellipse in world Cartesian — same helper as KFTracker."""
+        p2 = self.get_position_covariance_2d()
+        evals, evecs = np.linalg.eigh(p2)
+        order = np.argsort(evals)[::-1]
+        evals = np.maximum(evals[order], 1e-9)
+        semi = np.sqrt(evals * CHI2_95_2D)
+        width = float(2.0 * semi[0])
+        height = float(2.0 * semi[1])
+        v = evecs[:, order[0]]
+        angle_deg = float(np.degrees(np.arctan2(v[1], v[0])))
         mean = self.get_state()[:2]
         return UncertaintyEllipse2D(
             center=(float(mean[0]), float(mean[1])),

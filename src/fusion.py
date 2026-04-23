@@ -1,9 +1,14 @@
 """
-End-to-end single-target fusion: synthetic trajectory, parallel simulators, three KF tracks.
+End-to-end single-target fusion: synthetic trajectory, parallel simulators, four tracks.
 
-This module is the *glue* the portfolio story rests on. It exists so a reviewer
-can run one command and see measurement gaps, process noise, and covariance
-evolution in one place without any API or deployment plumbing.
+Four parallel trackers are compared:
+
+* **KF fused** — linear KF, radar converted to Cartesian before update (old path)
+* **EKF fused** — ExtendedKalmanFilter, radar in native (r, θ) with analytic Jacobian
+* **Camera-only** — linear KF, camera measurements only
+* **Radar-only** — linear KF, Cartesian radar only (for degraded baseline)
+
+The EKF vs KF comparison is the primary takeaway for the portfolio.
 """
 
 from __future__ import annotations
@@ -93,10 +98,12 @@ def run_fusion_demo(
     """
     Run the *full* single-target fusion experiment and return a dict for plotting/JSON.
 
-    The routine wires up three :class:`ekf.KFTracker` objects:
-    *fused* (camera+radar when available), *camera-only*, and *radar-only*.
-    Each time step applies ``predict()``, then zero, one, or two measurement
-    updates depending on simulator output.
+    The routine wires up four trackers:
+
+    * ``fused`` — :class:`ekf.KFTracker`, camera + Cartesian radar (baseline)
+    * ``ekf_fused`` — :class:`ekf.EKFTracker`, camera + polar radar (the new path)
+    * ``cam_kf`` — :class:`ekf.KFTracker`, camera-only baseline
+    * ``rad_kf`` — :class:`ekf.KFTracker`, Cartesian radar-only baseline
 
     The returned structure is a plain *serializable-friendly* map with NumPy
     arrays so notebooks can introspect the same data as the CLI demo.
@@ -106,16 +113,25 @@ def run_fusion_demo(
     radar_list = radar_sim.run_radar_on_trajectory(true_xy, rng)
     cam_list = camera_sim.run_camera_on_trajectory(true_xy, rng)
 
-    # R_camera: from pixel 1-σ; R_radar: tighter (see module constants above)
+    # R_camera: from pixel 1-σ; R_radar_cart: tighter diagonal world covariance (KF path)
     r_cam = utils.pixel_noise_to_world_covariance(
         camera_sim.CAMERA_CENTER_NOISE_STD_PX,
         camera_sim.CAMERA_CENTER_NOISE_STD_PX,
     )
     r_radar = np.eye(2, dtype=np.float64) * RADAR_MEASUREMENT_VAR_M2
+    # EKF polar R: diag([σ_r², σ_θ²]) — built from physical constants, no tuning needed
+    r_radar_polar = np.diag(
+        [ekf.RADAR_RANGE_NOISE_STD_EKF_M ** 2, ekf.RADAR_AZIMUTH_NOISE_STD_EKF_RAD ** 2]
+    ).astype(np.float64)
 
     x0 = _initial_state_from_ground_truth(true_xy, FUSION_FRAME_DT_S, rng)
+    # Linear KF with Cartesian radar (existing baseline)
     fused = ekf.KFTracker(
         x0, dt=FUSION_FRAME_DT_S, r_camera=r_cam, r_radar=r_radar
+    )
+    # EKF with polar radar (new — the main upgrade)
+    ekf_fused = ekf.EKFTracker(
+        x0, dt=FUSION_FRAME_DT_S, r_camera=r_cam, r_radar_polar=r_radar_polar
     )
     cam_kf = ekf.KFTracker(
         x0, dt=FUSION_FRAME_DT_S, r_camera=r_cam, r_radar=r_radar
@@ -125,20 +141,26 @@ def run_fusion_demo(
     )
 
     n = TRAJECTORY_NUM_FRAMES
-    fused_path = np.zeros((n, 2), dtype=np.float64)
+    kf_fused_path = np.zeros((n, 2), dtype=np.float64)
+    ekf_fused_path = np.zeros((n, 2), dtype=np.float64)
     cam_path = np.zeros((n, 2), dtype=np.float64)
     rad_path = np.zeros((n, 2), dtype=np.float64)
-    trace_p = np.zeros(n, dtype=np.float64)  # scalar uncertainty proxy: tr(P)
-    cam_meas_world = np.full((n, 2), np.nan, dtype=np.float64)  # for debugging/plots
+    kf_trace_p = np.zeros(n, dtype=np.float64)
+    ekf_trace_p = np.zeros(n, dtype=np.float64)
+    cam_meas_world = np.full((n, 2), np.nan, dtype=np.float64)
     rad_meas_world = np.full((n, 2), np.nan, dtype=np.float64)
-    # Precompute ellipse geometry for the trajectory plot (no second RNG pass)
-    uncertainty_ellipses: List[Tuple[int, ekf.UncertaintyEllipse2D]] = []
+    # Ellipses stored during the loop — one set per tracker, no second RNG pass
+    kf_ellipses: List[Tuple[int, ekf.UncertaintyEllipse2D]] = []
+    ekf_ellipses: List[Tuple[int, ekf.UncertaintyEllipse2D]] = []
+
     for k in range(n):
-        # time update for all three filters first
+        # Time update: all four filters advance one step
         fused.predict()
+        ekf_fused.predict()
         cam_kf.predict()
         rad_kf.predict()
 
+        # Decode camera measurement
         z_cam: Optional[NDArray[np.float64]] = None
         if cam_list[k] is not None:
             px = cam_list[k]
@@ -146,49 +168,68 @@ def run_fusion_demo(
             wx, wy = utils.pixel_to_world_meters(u, v)
             z_cam = np.array([wx, wy], dtype=np.float64)
             cam_meas_world[k, :] = z_cam
-        z_rad: Optional[NDArray[np.float64]] = None
+
+        # Decode radar measurement (Cartesian for KF, polar for EKF)
+        z_rad_cart: Optional[NDArray[np.float64]] = None
+        z_rad_polar: Optional[NDArray[np.float64]] = None
         if radar_list[k] is not None:
-            zx, zy = radar_sim.polar_to_world_xy(radar_list[k])
-            z_rad = np.array([zx, zy], dtype=np.float64)
-            rad_meas_world[k, :] = z_rad
-        # Fusion rules: feed both sensors in sequence when they exist; order: camera, radar.
-        # INTERVIEW CRITICAL: two sequential KF updates at one time step is not the same as a
-        # single joint update with stacked H/R unless measurements are conditionally independent
-        # in the right order — fine for a tutorial; production systems use joint M-H or gating.
-        if z_cam is not None and z_rad is not None:
+            ret = radar_list[k]
+            zx, zy = radar_sim.polar_to_world_xy(ret)
+            z_rad_cart = np.array([zx, zy], dtype=np.float64)
+            z_rad_polar = np.array([ret.range_m, ret.azimuth_rad], dtype=np.float64)
+            rad_meas_world[k, :] = z_rad_cart
+
+        # --- Linear KF fused update (Cartesian radar) ---
+        # INTERVIEW CRITICAL: two sequential KF updates at one time step is not the same
+        # as a single joint update with stacked H/R unless measurements are conditionally
+        # independent given the state — acceptable for a tutorial; production uses gating.
+        if z_cam is not None:
             fused.update_camera(z_cam, r_override=r_cam)
-            fused.update_radar(z_rad, r_override=r_radar)
-        elif z_cam is not None:
-            fused.update_camera(z_cam, r_override=r_cam)
-        elif z_rad is not None:
-            fused.update_radar(z_rad, r_override=r_radar)
+        if z_rad_cart is not None:
+            fused.update_radar(z_rad_cart, r_override=r_radar)
+
+        # --- EKF fused update (polar radar, linear camera) ---
+        if z_cam is not None:
+            ekf_fused.update_camera(z_cam, r_override=r_cam)
+        if z_rad_polar is not None:
+            ekf_fused.update_radar_polar(z_rad_polar)
+
+        # --- Single-modality baselines ---
         if z_cam is not None:
             cam_kf.update_camera(z_cam, r_override=r_cam)
-        if z_rad is not None:
-            rad_kf.update_radar(z_rad, r_override=r_radar)
+        if z_rad_cart is not None:
+            rad_kf.update_radar(z_rad_cart, r_override=r_radar)
 
-        fused_path[k, :] = fused.get_state()[:2]
+        kf_fused_path[k, :] = fused.get_state()[:2]
+        ekf_fused_path[k, :] = ekf_fused.get_state()[:2]
         cam_path[k, :] = cam_kf.get_state()[:2]
         rad_path[k, :] = rad_kf.get_state()[:2]
-        p_full = fused.get_covariance()
-        trace_p[k] = float(np.trace(p_full))
+        kf_trace_p[k] = float(np.trace(fused.get_covariance()))
+        ekf_trace_p[k] = float(np.trace(ekf_fused.get_covariance()))
         if k % ELLIPSE_FRAME_STEP == 0:
-            # Snapshot after the measurement stage so the ellipse reflects the posterior
-            uncertainty_ellipses.append((k, fused.get_uncertainty_ellipse()))
+            kf_ellipses.append((k, fused.get_uncertainty_ellipse()))
+            ekf_ellipses.append((k, ekf_fused.get_uncertainty_ellipse()))
 
     return {
         "ground_truth": true_xy,
-        "fused": fused_path,
+        # KF fused (Cartesian radar) — kept for comparison
+        "fused": kf_fused_path,
+        "cov_trace": kf_trace_p,
+        "uncertainty_ellipses": kf_ellipses,
+        # EKF fused (polar radar) — new
+        "ekf_fused": ekf_fused_path,
+        "ekf_cov_trace": ekf_trace_p,
+        "ekf_uncertainty_ellipses": ekf_ellipses,
+        # Single-modality baselines
         "camera_only": cam_path,
         "radar_only": rad_path,
-        "cov_trace": trace_p,
-        "camera_pixel_centers": cam_list,  # list of objects / None
+        # Raw measurements for debugging / notebook
+        "camera_pixel_centers": cam_list,
         "radar_polars": radar_list,
         "camera_world_measurements": cam_meas_world,
         "radar_world_measurements": rad_meas_world,
         "r_camera_2d": r_cam,
         "r_radar_2d": r_radar,
-        "uncertainty_ellipses": uncertainty_ellipses,
     }
 
 
@@ -211,7 +252,9 @@ def plot_results(
     r_only = res["radar_only"]
     n = true_xy.shape[0]
 
-    fig1, ax = plt.subplots(figsize=(7, 6))
+    ekf_fused = res.get("ekf_fused")
+
+    fig1, ax = plt.subplots(figsize=(8, 6))
     ax.plot(
         true_xy[:, 0],
         true_xy[:, 1],
@@ -220,51 +263,55 @@ def plot_results(
         label="Ground truth",
     )
     ax.plot(
-        fused[:, 0], fused[:, 1], color="C0", linewidth=1.5, label="Fused (camera+radar)"
+        fused[:, 0], fused[:, 1], color="C0", linewidth=1.2,
+        linestyle="--", label="KF fused (Cartesian radar)",
+    )
+    if ekf_fused is not None:
+        ax.plot(
+            ekf_fused[:, 0], ekf_fused[:, 1], color="C3", linewidth=1.6,
+            label="EKF fused (polar radar)",
+        )
+    ax.plot(
+        c_only[:, 0], c_only[:, 1],
+        color="C1", linestyle=":", linewidth=1.0, label="Camera-only KF",
     )
     ax.plot(
-        c_only[:, 0],
-        c_only[:, 1],
-        color="C1",
-        linestyle="--",
-        linewidth=1.2,
-        label="Camera-only KF",
+        r_only[:, 0], r_only[:, 1],
+        color="C2", linestyle=":", linewidth=1.0, label="Radar-only KF",
     )
-    ax.plot(
-        r_only[:, 0],
-        r_only[:, 1],
-        color="C2",
-        linestyle=":",
-        linewidth=1.2,
-        label="Radar-only KF",
-    )
-    for _frame, ell in res.get("uncertainty_ellipses", []):
+    # EKF ellipses (preferred); fall back to KF ellipses
+    ellipse_data = res.get("ekf_uncertainty_ellipses") or res.get("uncertainty_ellipses", [])
+    ell_color = "C3" if res.get("ekf_uncertainty_ellipses") else "C0"
+    for _frame, ell in ellipse_data:
         e = Ellipse(
             ell.center,
             width=ell.width,
             height=ell.height,
             angle=ell.angle_deg,
             facecolor="none",
-            edgecolor="C0",
+            edgecolor=ell_color,
             linewidth=0.8,
             alpha=0.7,
         )
         ax.add_patch(e)
     ax.set_xlabel("World x (m)")
     ax.set_ylabel("World y (m)")
-    ax.set_title("Fused track vs. single-modality filters")
+    ax.set_title("EKF (polar radar) vs. KF (Cartesian radar) vs. single-modality")
     ax.set_aspect("equal", adjustable="box")
-    ax.legend()
+    ax.legend(fontsize=8)
     ax.grid(True, alpha=0.3)
 
-    # RMSE panel — per-frame L2 as instantaneous error, not a sliding mean
-    err_f = _per_frame_l2(true_xy, fused)
+    # Error panel — per-frame L2, all four tracks
+    err_kf = _per_frame_l2(true_xy, fused)
     err_c = _per_frame_l2(true_xy, c_only)
     err_r = _per_frame_l2(true_xy, r_only)
-    fig2, ax2 = plt.subplots(figsize=(7, 4))
+    fig2, ax2 = plt.subplots(figsize=(8, 4))
     t = np.arange(n)
-    ax2.plot(t, err_f, color="C0", label="Fused")
-    ax2.plot(t, err_c, color="C1", linestyle="--", label="Camera-only")
+    ax2.plot(t, err_kf, color="C0", linestyle="--", linewidth=1.2, label="KF fused (Cartesian)")
+    if ekf_fused is not None:
+        err_ekf = _per_frame_l2(true_xy, ekf_fused)
+        ax2.plot(t, err_ekf, color="C3", linewidth=1.6, label="EKF fused (polar)")
+    ax2.plot(t, err_c, color="C1", linestyle=":", label="Camera-only")
     ax2.plot(t, err_r, color="C2", linestyle=":", label="Radar-only")
     ax2.axvspan(
         PLOT_OCCLUSION_START,
@@ -274,10 +321,10 @@ def plot_results(
         label="Camera occlusion (radar only)",
     )
     ax2.set_xlabel("Frame index k")
-    ax2.set_ylabel("Position error (m) — L2 to ground truth")
-    ax2.set_title("Per-frame error — fusion reduces peak error in occlusion window")
+    ax2.set_ylabel("Position error (m)")
+    ax2.set_title("Per-frame L2 error — EKF vs. KF")
     ax2.grid(True, alpha=0.3)
-    ax2.legend()
+    ax2.legend(fontsize=8)
     if show and "agg" not in str(plt.get_backend()).lower():
         plt.show()
     return fig1, fig2

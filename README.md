@@ -1,6 +1,6 @@
 # FusionTrack
 
-Multi-sensor UAV tracking in 2D by fusing **simulated radar** (range, azimuth with miss and false-alarm behavior) and **simulated camera** (noisy bounding-box centers in pixels) through a **constant-velocity Kalman filter** with separate **camera** and **radar** measurement noise matrices. This repository is a portfolio-quality **math + simulation** slice: no API server, no Docker, no experiment tracking yet.
+Multi-sensor UAV tracking in 2D by fusing **simulated radar** (range, azimuth with miss and false-alarm behavior) and **simulated camera** (noisy bounding-box centers in pixels) through both a **linear KF** (Cartesian radar) and a **true Extended Kalman Filter** (native polar radar with analytic Jacobian). This repository is a portfolio-quality **math + simulation** slice: no API server, no Docker, no experiment tracking yet.
 
 ## What to run
 
@@ -16,7 +16,7 @@ cd /path/to/fusiontrack
 python -m src.fusion
 ```
 
-Unit tests (seven cases covering `predict`, L2 after update, trace reduction, repeated updates, PSD covariance, ellipse):
+Unit tests (14 cases: KFTracker predict/update/PSD/ellipse + EKFTracker polar update, angle wrapping, covariance calibration):
 
 ```bash
 pytest tests/ -q
@@ -32,17 +32,26 @@ jupyter notebook notebooks/01_fusion_demo.ipynb
 
 | Path | Role |
 |------|------|
-| `src/ekf.py` | `KFTracker` (linear KF) — `predict`, `update_camera`, `update_radar`, covariance / ellipse |
+| `src/ekf.py` | `KFTracker` (linear KF) and `EKFTracker` (polar EKF) — predict, update, covariance, ellipse |
 | `src/radar_sim.py` | Polar returns with Gaussian noise, misses, false alarms |
 | `src/camera_sim.py` | Pixel centers with noise, stochastic misses, occlusion window |
-| `src/fusion.py` | Synthetic trajectory, three parallel filters (fused / camera-only / radar-only), plots |
+| `src/fusion.py` | Synthetic trajectory, four parallel trackers (EKF fused / KF fused / camera-only / radar-only) |
 | `src/utils.py` | Pixel ↔ world scaling, polar ↔ Cartesian |
 | `docs/ekf_explainer.md` | Matrix cheat-sheet (placeholders for your interview notes) |
 
-## Naming: linear KF, not an EKF (yet)
+## Two trackers: KFTracker vs EKFTracker
 
-The **class** is `KFTracker` and uses `filterpy.kalman.KalmanFilter` — **linear** constant-velocity dynamics and linear position measurements in a shared world $(x, y)$ frame. The filename `ekf.py` is kept as a short handle; a true **Extended** Kalman update in native polar $h(x)$ (or a UKF) is a natural follow-on so the colloquial “EKF fusion” in READMEs matches the implementation.
+`src/ekf.py` now provides **both**:
 
-Sensors: camera $R$ comes from **pixel** noise (weaker, ~4 m 1-σ in world for the default sim); radar $R$ is set **tighter** (~2 m 1-σ) so fusion has a defensible *sensor weighting* story. See `src/fusion.RADAR_MEASUREMENT_VAR_M2` and comments there.
+| Class | Measurement model | Radar update | R matrix |
+|-------|------------------|--------------|----------|
+| `KFTracker` | Linear $H \mathbf{x}$ for both sensors | Polar → Cartesian first, diagonal world $R$ | ~2 m 1-σ isotropic (tunable knob) |
+| `EKFTracker` | Linear $H$ for camera; nonlinear $h(\mathbf{x}) = [r, \theta]$ for radar | **Native polar**, analytic Jacobian, angle-normalizing residual | $\text{diag}(\sigma_r^2, \sigma_\theta^2)$ — physically derived |
 
-The **polar** simulator still draws noise in $(r, \theta)$; mapping to world with a diagonal $R$ is the usual interview trade-off: see `# INTERVIEW CRITICAL` in `src/ekf.py` and `src/utils.py`.
+The EKF radar update avoids the linearization error that the Cartesian approximation introduces at large azimuth offsets or long range.  Camera measurements stay linear (they are already in world Cartesian after the pixel → metre mapping in `utils`).
+
+**Interview notes (marked `# INTERVIEW CRITICAL` in code)**
+- Jacobian is evaluated at the **predicted** state → linearization error grows for large prediction steps or sharp turns → a UKF sigma-point approach avoids this.
+- Angle wrapping in the innovation ($y_\theta \in (-\pi, \pi]$) is mandatory whenever a bearing appears; identical issue in SLAM, GPS/compass fusion, quaternion EKF.
+- Sequential two-update-per-frame (camera then radar) is *not* equivalent to a single joint update unless measurements are conditionally independent given the state — acceptable for tutorial; production uses gating + MHT.
+- `tr(P)` shrinks after a good update, but it is not a geometric “area” — use NEES or the full ellipse for consistency checking.
