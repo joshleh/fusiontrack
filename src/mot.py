@@ -39,21 +39,24 @@ from . import ekf, mot_sim
 # clutter ingestion; tightening it rejects bad measurements but risks track loss.
 CHI2_GATE_2DOF_99: Final[float] = 9.210
 
-# A tentative track must collect this many consecutive hits to become confirmed.
 HITS_TO_CONFIRM: Final[int] = 2
-# A confirmed track is deleted after this many consecutive frames with no measurement.
 MAX_MISSES_BEFORE_DELETE: Final[int] = 3
-# A tentative track that never gets a second hit is pruned after this many frames.
 MAX_TENTATIVE_AGE: Final[int] = 3
 
 # Sentinel cost for gated (infeasible) assignments so Hungarian still runs cleanly.
 _LARGE_COST: Final[float] = 1e9
 
+# Ellipse snapshot cadence (frames)
+ELLIPSE_FRAME_STEP: Final[int] = 10
+
+# Max distance (m) to call a (track, GT) pair a valid match when computing metrics
+MATCH_GATE_M: Final[float] = 50.0
+
 
 class TrackState(Enum):
-    TENTATIVE = auto()   # recently born; awaiting confirmation
-    CONFIRMED = auto()   # sustained hit stream; report to downstream consumers
-    DELETED = auto()     # to be pruned at end of this cycle
+    TENTATIVE = auto()
+    CONFIRMED = auto()
+    DELETED = auto()
 
 
 class Track:
@@ -81,16 +84,10 @@ class Track:
             initial_state, dt=dt, r_radar_polar=r_radar_polar
         )
 
-    # ------------------------------------------------------------------
-    # Time update
-    # ------------------------------------------------------------------
     def predict(self) -> None:
         self._tracker.predict()
         self.age += 1
 
-    # ------------------------------------------------------------------
-    # Measurement update and miss bookkeeping
-    # ------------------------------------------------------------------
     def update(self, z_polar: NDArray[np.float64]) -> None:
         self._tracker.update_radar_polar(z_polar)
         self.hits += 1
@@ -99,9 +96,6 @@ class Track:
     def miss(self) -> None:
         self.misses += 1
 
-    # ------------------------------------------------------------------
-    # State accessors
-    # ------------------------------------------------------------------
     def get_position(self) -> NDArray[np.float64]:
         return self._tracker.get_state()[:2]
 
@@ -125,20 +119,6 @@ class TrackerManager:
         zs = [np.array([ret.range_m, ret.azimuth_rad]) for ret in frame_returns]
         manager.update(zs)
         confirmed = manager.get_confirmed_tracks()
-
-    Parameters
-    ----------
-    dt
-        Frame period in seconds; passed to each new Track.
-    hits_to_confirm
-        Consecutive hit count to promote TENTATIVE → CONFIRMED.
-    max_misses
-        Consecutive miss count to delete a CONFIRMED track.
-    gate_chi2
-        Mahalanobis gate threshold (chi-square, 2 DOF).
-    r_radar_polar
-        2×2 polar R matrix shared across all tracks.  Defaults to the physical
-        noise parameters in :mod:`ekf`.
     """
 
     def __init__(
@@ -165,26 +145,24 @@ class TrackerManager:
     # ------------------------------------------------------------------
     # Per-frame API
     # ------------------------------------------------------------------
+
     def predict_all(self) -> None:
-        """Time-update every live track."""
         for t in self.tracks:
             t.predict()
 
     def update(self, measurements: Sequence[NDArray[np.float64]]) -> None:
         """
-        Associate ``measurements`` to existing tracks, then manage lifecycle.
+        Associate measurements to existing tracks, then manage lifecycle.
 
         Parameters
         ----------
         measurements
-            Sequence of ``[range_m, azimuth_rad]`` polar arrays for this frame.
-            The order carries no identity information (shuffled by the sensor).
+            Sequence of ``[range_m, azimuth_rad]`` polar arrays (no ordering info).
         """
         measurements = list(measurements)
         n_tracks = len(self.tracks)
         n_meas = len(measurements)
 
-        # Edge cases: no tracks or no measurements
         if n_tracks == 0:
             for z in measurements:
                 self._birth(z)
@@ -199,7 +177,7 @@ class TrackerManager:
         cost = self._build_cost_matrix(measurements)
         row_ind, col_ind = linear_sum_assignment(cost)
 
-        # Only accept assignments within the gate (others get _LARGE_COST sentinel)
+        # Accept only within-gate assignments
         assigned_tracks: set = set()
         assigned_meas: set = set()
         for r, c in zip(row_ind, col_ind):
@@ -208,12 +186,10 @@ class TrackerManager:
                 assigned_tracks.add(r)
                 assigned_meas.add(c)
 
-        # Unmatched tracks → missed
         for i, t in enumerate(self.tracks):
             if i not in assigned_tracks:
                 t.miss()
 
-        # Unmatched measurements → birth new tentative track
         for j, z in enumerate(measurements):
             if j not in assigned_meas:
                 self._birth(z)
@@ -223,17 +199,17 @@ class TrackerManager:
     # ------------------------------------------------------------------
     # Accessors
     # ------------------------------------------------------------------
+
     def get_confirmed_tracks(self) -> List[Track]:
-        """Return only confirmed (non-tentative, non-deleted) tracks."""
         return [t for t in self.tracks if t.state == TrackState.CONFIRMED]
 
     def get_all_tracks(self) -> List[Track]:
-        """Return all live tracks (tentative + confirmed)."""
         return list(self.tracks)
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
     def _build_cost_matrix(
         self, measurements: List[NDArray[np.float64]]
     ) -> NDArray[np.float64]:
@@ -241,8 +217,10 @@ class TrackerManager:
         (n_tracks × n_meas) Mahalanobis cost matrix.
 
         Entry [i, j] = d²(track_i, meas_j) if d² ≤ gate_chi2 else _LARGE_COST.
-        Gating here (not just post-assignment) prevents the Hungarian from wasting
-        capacity on clearly infeasible pairs.
+        Gating here prevents the Hungarian from wasting capacity on infeasible pairs.
+        # INTERVIEW CRITICAL: without pre-gating, a dense clutter field fills every
+        # row with valid costs and the Hungarian may steal a measurement from a
+        # confirmed track to serve a false-alarm-born tentative.
         """
         cost = np.full(
             (len(self.tracks), len(measurements)), fill_value=_LARGE_COST, dtype=np.float64
@@ -258,11 +236,7 @@ class TrackerManager:
     def _mahalanobis_sq(
         track: Track, z_polar: NDArray[np.float64]
     ) -> Optional[float]:
-        """
-        d² = y^T S^{-1} y in polar measurement space (angle-normalised).
-
-        Returns ``None`` if S is singular (degenerate state — skip this pair).
-        """
+        """d² = y^T S^{-1} y in polar space (angle-normalised). None if S is singular."""
         try:
             y, S = track.compute_innovation_polar(z_polar)
             y_flat = y.ravel()
@@ -271,22 +245,14 @@ class TrackerManager:
             return None
 
     def _birth(self, z_polar: NDArray[np.float64]) -> None:
-        """
-        Spawn a TENTATIVE track from an unmatched polar measurement.
-
-        Initial velocity is zero with high uncertainty (INIT_VEL_VAR_M2S2 from ekf).
-        Two confirmed measurements are enough to estimate velocity; one is not.
-        """
+        """Spawn TENTATIVE track from unmatched measurement. Velocity initialised to zero."""
         r, az = float(z_polar[0]), float(z_polar[1])
-        x_w = r * math.cos(az)
-        y_w = r * math.sin(az)
-        x0 = np.array([x_w, y_w, 0.0, 0.0], dtype=np.float64)
+        x0 = np.array([r * math.cos(az), r * math.sin(az), 0.0, 0.0], dtype=np.float64)
         t = Track(x0, self._next_id, dt=self._dt, r_radar_polar=self._r_radar_polar)
         self._next_id += 1
         self.tracks.append(t)
 
     def _apply_lifecycle_rules(self) -> None:
-        """Promote tentative → confirmed, mark excess misses → deleted, then prune."""
         for t in self.tracks:
             if t.state == TrackState.TENTATIVE:
                 if t.hits >= self._hits_to_confirm:
@@ -297,6 +263,91 @@ class TrackerManager:
                 if t.misses >= self._max_misses:
                     t.state = TrackState.DELETED
         self.tracks = [t for t in self.tracks if t.state != TrackState.DELETED]
+
+
+# ---------------------------------------------------------------------------
+# Metrics
+# ---------------------------------------------------------------------------
+
+def compute_mot_metrics(res: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Compute per-track RMSE and ID-switch count by assigning tracks to ground truth.
+
+    For each frame, each live track is assigned to the nearest GT trajectory (within
+    ``MATCH_GATE_M``) via Hungarian on the Euclidean cost matrix.  An ID switch is
+    counted when a track's assigned GT trajectory changes between consecutive frames.
+
+    Parameters
+    ----------
+    res
+        Dict returned by :func:`run_mot_demo` (must contain ``true_trajectories``,
+        ``track_history``, and ``n_frames``).
+
+    Returns
+    -------
+    dict with keys ``id_switches`` (int), ``per_track_rmse`` (dict[int→float]),
+    ``mean_rmse`` (float).
+    """
+    trajectories: List[NDArray[np.float64]] = res["true_trajectories"]
+    track_history: List[Dict[int, NDArray[np.float64]]] = res["track_history"]
+    n_gt = len(trajectories)
+
+    per_frame_assignments: List[Dict[int, int]] = []
+
+    for k, frame_state in enumerate(track_history):
+        if not frame_state:
+            per_frame_assignments.append({})
+            continue
+
+        track_ids = list(frame_state.keys())
+        track_pos = np.array([frame_state[tid] for tid in track_ids])
+        gt_pos = np.array([trajectories[j][k] for j in range(n_gt)])
+
+        # Euclidean cost matrix (n_tracks × n_gt)
+        diff = track_pos[:, None, :] - gt_pos[None, :, :]
+        cost = np.sqrt((diff ** 2).sum(axis=2))
+
+        row_ind, col_ind = linear_sum_assignment(cost)
+
+        assignments: Dict[int, int] = {}
+        for r, c in zip(row_ind, col_ind):
+            if cost[r, c] < MATCH_GATE_M:
+                assignments[track_ids[r]] = c
+        per_frame_assignments.append(assignments)
+
+    # Count ID switches: a track's GT assignment changes between consecutive frames
+    id_switches = 0
+    prev_assignments: Dict[int, int] = {}
+    for frame_assignments in per_frame_assignments:
+        for tid, gt_idx in frame_assignments.items():
+            if tid in prev_assignments and prev_assignments[tid] != gt_idx:
+                id_switches += 1
+        prev_assignments.update(frame_assignments)
+
+    # Per-track RMSE against the assigned GT
+    track_errors: Dict[int, List[float]] = {}
+    for k, (frame_state, frame_assignments) in enumerate(
+        zip(track_history, per_frame_assignments)
+    ):
+        for tid, pos in frame_state.items():
+            if tid not in frame_assignments:
+                continue
+            gt_idx = frame_assignments[tid]
+            err = float(np.linalg.norm(pos - trajectories[gt_idx][k]))
+            track_errors.setdefault(tid, []).append(err)
+
+    per_track_rmse: Dict[int, float] = {
+        tid: float(np.sqrt(np.mean(np.array(errs) ** 2)))
+        for tid, errs in track_errors.items()
+        if errs
+    }
+    mean_rmse = float(np.mean(list(per_track_rmse.values()))) if per_track_rmse else float("nan")
+
+    return {
+        "id_switches": id_switches,
+        "per_track_rmse": per_track_rmse,
+        "mean_rmse": mean_rmse,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -313,11 +364,9 @@ def run_mot_demo(
 
     Returns
     -------
-    dict with keys:
-      ``true_trajectories`` — list of (n_frames, 2) arrays
-      ``track_history``     — per-frame list of {track_id: (2,) position}
-      ``all_measurements``  — per-frame list of PolarRadarReturn objects (shuffled)
-      ``n_frames``          — frame count
+    dict with keys: ``true_trajectories``, ``track_history``,
+    ``all_measurements``, ``measurements_world``, ``ellipse_snapshots``,
+    ``metrics``, ``n_frames``.
     """
     rng = rng or default_rng(42)
     trajectories = mot_sim.make_crossing_scenario(n_frames)
@@ -326,6 +375,11 @@ def run_mot_demo(
     manager = TrackerManager(dt=1.0)
 
     track_history: List[Dict[int, NDArray[np.float64]]] = []
+    # Ellipse snapshots for confirmed tracks every ELLIPSE_FRAME_STEP frames
+    ellipse_snapshots: List[Tuple[int, Dict[int, ekf.UncertaintyEllipse2D]]] = []
+    # World-frame measurement positions for plotting (polar → Cartesian)
+    measurements_world: List[List[NDArray[np.float64]]] = []
+
     for k in range(n_frames):
         manager.predict_all()
         zs = [
@@ -333,63 +387,98 @@ def run_mot_demo(
             for ret in per_frame_meas[k]
         ]
         manager.update(zs)
-        # Record positions of all live tracks (tentative + confirmed)
-        frame_state: Dict[int, NDArray[np.float64]] = {}
-        for t in manager.get_all_tracks():
-            frame_state[t.track_id] = t.get_position().copy()
+
+        frame_state: Dict[int, NDArray[np.float64]] = {
+            t.track_id: t.get_position().copy() for t in manager.get_all_tracks()
+        }
         track_history.append(frame_state)
 
-    return {
+        # Snapshot ellipses for confirmed tracks (no second RNG pass needed)
+        if k % ELLIPSE_FRAME_STEP == 0:
+            frame_ellipses: Dict[int, ekf.UncertaintyEllipse2D] = {
+                t.track_id: t.get_uncertainty_ellipse()
+                for t in manager.get_confirmed_tracks()
+            }
+            ellipse_snapshots.append((k, frame_ellipses))
+
+        # Convert measurements to world for the animation/plot
+        frame_world = [
+            np.array([ret.range_m * math.cos(ret.azimuth_rad),
+                      ret.range_m * math.sin(ret.azimuth_rad)])
+            for ret in per_frame_meas[k]
+        ]
+        measurements_world.append(frame_world)
+
+    res: Dict[str, Any] = {
         "true_trajectories": trajectories,
         "track_history": track_history,
         "all_measurements": per_frame_meas,
+        "measurements_world": measurements_world,
+        "ellipse_snapshots": ellipse_snapshots,
         "n_frames": n_frames,
     }
+    res["metrics"] = compute_mot_metrics(res)
+    return res
 
+
+# ---------------------------------------------------------------------------
+# Static plot
+# ---------------------------------------------------------------------------
 
 def plot_mot_results(
     res: Dict[str, Any], *, show: bool = True
 ) -> plt.Figure:
     """
-    Plot the MOT demo: true trajectories (grey dashed) + estimated track paths
-    (coloured by track ID, solid once confirmed, dotted while tentative).
+    Trajectory plot with GT (grey dashed), estimated track paths (coloured by ID),
+    and 95% uncertainty ellipses for confirmed tracks every 10 frames.
     """
     fig, ax = plt.subplots(figsize=(9, 7))
     cmap = plt.get_cmap("tab10")
 
-    # True trajectories — dashed grey for reference
+    # Ground truth
     for i, traj in enumerate(res["true_trajectories"]):
-        ax.plot(
-            traj[:, 0], traj[:, 1],
-            color="0.55", linewidth=1.5, linestyle="--",
-            label=f"Truth T{i + 1}" if i == 0 else None,
-            zorder=1,
-        )
+        lbl = "Ground truth" if i == 0 else None
+        ax.plot(traj[:, 0], traj[:, 1], color="0.55", linewidth=1.5, linestyle="--",
+                label=lbl, zorder=1)
         ax.scatter(traj[0, 0], traj[0, 1], marker="o", color="0.4", s=40, zorder=2)
         ax.scatter(traj[-1, 0], traj[-1, 1], marker="s", color="0.4", s=40, zorder=2)
 
-    # Estimated track paths — group frames by track_id
+    # Estimated track paths
     track_paths: Dict[int, List[NDArray[np.float64]]] = {}
     for frame_state in res["track_history"]:
         for tid, pos in frame_state.items():
             track_paths.setdefault(tid, []).append(pos)
 
+    color_map: Dict[int, Any] = {}
     for idx, (tid, positions) in enumerate(sorted(track_paths.items())):
         xy = np.array(positions)
         color = cmap(idx % 10)
-        ax.plot(
-            xy[:, 0], xy[:, 1],
-            color=color, linewidth=1.8,
-            label=f"Track {tid}",
-            zorder=3,
-        )
+        color_map[tid] = color
+        ax.plot(xy[:, 0], xy[:, 1], color=color, linewidth=1.8,
+                label=f"Track {tid}", zorder=3)
         ax.scatter(xy[-1, 0], xy[-1, 1], color=color, marker="^", s=60, zorder=4)
 
+    # Uncertainty ellipses for confirmed tracks
+    for _k, frame_ellipses in res.get("ellipse_snapshots", []):
+        for tid, ell in frame_ellipses.items():
+            color = color_map.get(tid, "C0")
+            e = Ellipse(
+                ell.center, width=ell.width, height=ell.height, angle=ell.angle_deg,
+                facecolor="none", edgecolor=color, linewidth=0.7, alpha=0.55, zorder=2,
+            )
+            ax.add_patch(e)
+
+    metrics = res.get("metrics", {})
+    title_suffix = ""
+    if metrics:
+        title_suffix = (
+            f"\nID switches: {metrics['id_switches']} | "
+            f"mean RMSE: {metrics['mean_rmse']:.1f} m"
+        )
     ax.set_xlabel("World x (m)")
     ax.set_ylabel("World y (m)")
     ax.set_title(
-        "Multi-Object Tracker — 3 crossing targets, GNN + Mahalanobis gate\n"
-        "(grey dashed = ground truth, coloured = estimated track)"
+        "MOT — 3 crossing targets, GNN + Mahalanobis gate" + title_suffix
     )
     ax.set_xlim(-20, mot_sim.WORLD_SIZE_M + 20)
     ax.set_ylim(-20, mot_sim.WORLD_SIZE_M + 20)
@@ -402,6 +491,131 @@ def plot_mot_results(
     return fig
 
 
+# ---------------------------------------------------------------------------
+# Animation
+# ---------------------------------------------------------------------------
+
+def make_mot_animation(res: Dict[str, Any], *, fps: int = 15) -> Any:
+    """
+    Build a ``FuncAnimation`` that plays back the MOT demo frame by frame.
+
+    Shows ground-truth paths (built up incrementally), live measurement dots,
+    estimated track paths, and uncertainty ellipses for confirmed tracks.
+    """
+    from matplotlib.animation import FuncAnimation
+
+    trajectories = res["true_trajectories"]
+    track_history = res["track_history"]
+    measurements_world = res["measurements_world"]
+    ellipse_snapshots = res["ellipse_snapshots"]
+    n_frames = res["n_frames"]
+
+    # Index ellipse snapshots by frame
+    ellipse_by_frame: Dict[int, Dict[int, ekf.UncertaintyEllipse2D]] = {
+        k: fe for k, fe in ellipse_snapshots
+    }
+
+    cmap = plt.get_cmap("tab10")
+    track_paths: Dict[int, List[NDArray[np.float64]]] = {}
+    for frame_state in track_history:
+        for tid, pos in frame_state.items():
+            track_paths.setdefault(tid, []).append(pos)
+
+    # Assign consistent colors by first-appearance order
+    sorted_ids = sorted(track_paths.keys())
+    color_map: Dict[int, Any] = {tid: cmap(i % 10) for i, tid in enumerate(sorted_ids)}
+
+    fig_anim, ax_anim = plt.subplots(figsize=(8, 7))
+    ax_anim.set_xlim(-20, mot_sim.WORLD_SIZE_M + 20)
+    ax_anim.set_ylim(-20, mot_sim.WORLD_SIZE_M + 20)
+    ax_anim.set_aspect("equal")
+    ax_anim.grid(True, alpha=0.25)
+
+    def init():
+        ax_anim.cla()
+        ax_anim.set_xlim(-20, mot_sim.WORLD_SIZE_M + 20)
+        ax_anim.set_ylim(-20, mot_sim.WORLD_SIZE_M + 20)
+        ax_anim.set_aspect("equal")
+        ax_anim.grid(True, alpha=0.25)
+
+    def update_frame(k: int) -> None:
+        ax_anim.cla()
+        ax_anim.set_xlim(-20, mot_sim.WORLD_SIZE_M + 20)
+        ax_anim.set_ylim(-20, mot_sim.WORLD_SIZE_M + 20)
+        ax_anim.set_aspect("equal")
+        ax_anim.grid(True, alpha=0.25)
+        ax_anim.set_title(f"MOT demo — frame {k:03d} / {n_frames - 1}", fontsize=10)
+
+        # Ground truth up to frame k
+        for traj in trajectories:
+            ax_anim.plot(traj[:k+1, 0], traj[:k+1, 1],
+                         color="0.6", linewidth=1.2, linestyle="--", zorder=1)
+
+        # Current measurements (dots)
+        for pt in measurements_world[k]:
+            ax_anim.scatter(pt[0], pt[1], color="red", s=12, alpha=0.6, zorder=5)
+
+        # Track paths up to frame k (look up positions from track_history)
+        frame_tids = set(track_history[k].keys())
+        for tid in sorted_ids:
+            positions_up_to_k = []
+            for j in range(k + 1):
+                if tid in track_history[j]:
+                    positions_up_to_k.append(track_history[j][tid])
+            if not positions_up_to_k:
+                continue
+            xy = np.array(positions_up_to_k)
+            color = color_map[tid]
+            ax_anim.plot(xy[:, 0], xy[:, 1], color=color, linewidth=1.6, zorder=3)
+            if tid in frame_tids:
+                ax_anim.scatter(xy[-1, 0], xy[-1, 1], color=color,
+                                marker="^", s=55, zorder=4)
+
+        # Uncertainty ellipses at this frame (if snapshot exists)
+        frame_ellipses = ellipse_by_frame.get(k, {})
+        for tid, ell in frame_ellipses.items():
+            color = color_map.get(tid, "C0")
+            e = Ellipse(
+                ell.center, width=ell.width, height=ell.height, angle=ell.angle_deg,
+                facecolor="none", edgecolor=color, linewidth=0.9, alpha=0.6, zorder=2,
+            )
+            ax_anim.add_patch(e)
+
+    anim = FuncAnimation(
+        fig_anim, update_frame, frames=n_frames,
+        init_func=init, interval=1000 // fps, blit=False,
+    )
+    return anim
+
+
+def save_mot_animation(
+    res: Dict[str, Any],
+    path: str = "mot_demo.gif",
+    *,
+    fps: int = 15,
+) -> str:
+    """
+    Save the MOT animation as a GIF (requires Pillow).
+    Returns the path written.
+    """
+    anim = make_mot_animation(res, fps=fps)
+    anim.save(path, writer="pillow", fps=fps)
+    plt.close("all")
+    return path
+
+
 if __name__ == "__main__":
+    import os
     out = run_mot_demo()
+    m = out["metrics"]
+    print(f"ID switches: {m['id_switches']}")
+    print(f"Mean RMSE:   {m['mean_rmse']:.2f} m")
+    for tid, rmse in sorted(m["per_track_rmse"].items()):
+        print(f"  Track {tid}: {rmse:.2f} m")
+
     plot_mot_results(out, show=True)
+
+    gif_path = "mot_demo.gif"
+    print(f"\nSaving animation → {gif_path} …")
+    save_mot_animation(out, gif_path, fps=12)
+    print(f"Saved {os.path.getsize(gif_path) // 1024} KB")
