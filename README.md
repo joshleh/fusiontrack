@@ -89,8 +89,8 @@ All numbers from `run_mot_demo(rng=default_rng(42))`, 100 frames, Poisson(0.5) c
 | **ID switches through crossing (frame 49)** | **0** |
 | Confirmed tracks matching GT trajectories | 3 (track IDs 2, 4, 10; lifetimes 82–100 frames) |
 | Per-target position RMSE | 2.51 m / 2.56 m / 2.62 m |
-| Mean RMSE (GT-matched tracks) | **2.56 m** |
-| Clutter tracks born and pruned | 4 (lifetime ≤ 15 frames each, by tentative-age rule) |
+| Mean RMSE (GT-matched tracks, lifetime ≥ 50 frames) | **2.57 m** |
+| Clutter tracks born and pruned | several (lifetime ≤ 15 frames each, by tentative-age rule) |
 
 The zero ID-switch result reflects the crossing-scenario design: Targets 1 & 2 pass within ~9 m at frame 49 (within each other's chi-square gate), but Target 3 stays ~40 m clear. The Hungarian globally optimal assignment distinguishes the two close targets without a swap. To observe ID switches, increase `clutter_rate` or halve the gate threshold — both degrade GNN before needing JPDA.
 

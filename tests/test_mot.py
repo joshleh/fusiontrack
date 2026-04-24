@@ -174,18 +174,40 @@ def test_track_ids_are_unique() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_mot_demo_produces_confirmed_tracks() -> None:
+def test_mot_demo_end_to_end_regression() -> None:
     """
-    Full 100-frame crossing demo must yield at least two confirmed tracks —
-    a basic end-to-end regression that the association and lifecycle logic
-    don't catastrophically fail on a realistic multi-target scenario.
+    Full 100-frame crossing demo regression:
+    - Exactly 3 GT-matched tracks survive with ≥50 frames of lifetime and RMSE < 5 m.
+    - Zero ID switches through the crossing at frame 49.
+
+    This is the tightest meaningful regression for the GNN + EKF stack: it catches
+    broken gating (RMSE blows up), broken lifecycle (fewer long tracks), and broken
+    data association (non-zero ID switches).
     """
     res = run_mot_demo(rng=np.random.default_rng(42), n_frames=100)
-    # Collect all unique track IDs that appear in history
-    all_ids = set()
-    for frame in res["track_history"]:
-        all_ids.update(frame.keys())
-    assert len(all_ids) >= 2, "At least 2 distinct tracks should be formed over 100 frames"
+    metrics = res["metrics"]
+
+    # Zero ID switches — GNN must not swap track identities through the crossing
+    assert metrics["id_switches"] == 0, (
+        f"Expected 0 ID switches, got {metrics['id_switches']}"
+    )
+
+    # Count GT-matched long-lived tracks (≥50 frames, RMSE < 5 m)
+    track_history = res["track_history"]
+    lifetime: dict = {}
+    for frame in track_history:
+        for tid in frame:
+            lifetime[tid] = lifetime.get(tid, 0) + 1
+
+    per_track_rmse = metrics["per_track_rmse"]
+    long_good_tracks = [
+        tid for tid, rmse in per_track_rmse.items()
+        if rmse < 5.0 and lifetime.get(tid, 0) >= 50
+    ]
+    assert len(long_good_tracks) == 3, (
+        f"Expected 3 long-lived GT-matched tracks (RMSE<5m, lifetime≥50), "
+        f"got {len(long_good_tracks)}: {long_good_tracks}"
+    )
 
 
 def test_mot_demo_track_history_length() -> None:

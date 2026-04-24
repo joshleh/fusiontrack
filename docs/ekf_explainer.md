@@ -136,6 +136,8 @@ Its eigenvectors point along the principal axes of the uncertainty ellipse; the 
 
 ## 10. Multi-object data association
 
+**ID switch (formal definition):** an ID switch occurs when the globally optimal track-to-GT assignment changes between two consecutive frames — i.e., the track that was closest to GT trajectory $i$ at frame $k$ is closest to a different GT trajectory $j \ne i$ at frame $k+1$.  Formally: $\text{IDSW} = \sum_k \mathbf{1}[\pi_k(\text{tid}) \ne \pi_{k-1}(\text{tid})]$ summed over all tracks and frames where both assignments exist.  A zero ID-switch count means no track ever "jumped" from one target to another.
+
 ### GNN (this implementation)
 
 1. Build cost matrix: $C_{ij} = d^2(\text{track}_i, \text{meas}_j)$ if within gate else $\infty$.

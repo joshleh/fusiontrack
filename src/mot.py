@@ -341,7 +341,15 @@ def compute_mot_metrics(res: Dict[str, Any]) -> Dict[str, Any]:
         for tid, errs in track_errors.items()
         if errs
     }
-    mean_rmse = float(np.mean(list(per_track_rmse.values()))) if per_track_rmse else float("nan")
+
+    # mean_rmse is restricted to tracks that were GT-matched for ≥ half the scenario
+    # (filters out clutter tracks that happen to drift near a GT path for a few frames)
+    min_matched_frames = len(track_history) // 2
+    long_matched_rmse = [
+        rmse for tid, rmse in per_track_rmse.items()
+        if len(track_errors.get(tid, [])) >= min_matched_frames
+    ]
+    mean_rmse = float(np.mean(long_matched_rmse)) if long_matched_rmse else float("nan")
 
     return {
         "id_switches": id_switches,
@@ -375,8 +383,12 @@ def run_mot_demo(
     manager = TrackerManager(dt=1.0)
 
     track_history: List[Dict[int, NDArray[np.float64]]] = []
-    # Ellipse snapshots for confirmed tracks every ELLIPSE_FRAME_STEP frames
+    # Confirmed status per frame — needed for state-based animation markers
+    track_confirmed_history: List[Dict[int, bool]] = []
+    # Ellipse snapshots for confirmed tracks every ELLIPSE_FRAME_STEP frames (static plot)
     ellipse_snapshots: List[Tuple[int, Dict[int, ekf.UncertaintyEllipse2D]]] = []
+    # Per-frame ellipses for all confirmed tracks (animation uses most-recent)
+    ellipse_all_frames: List[Dict[int, ekf.UncertaintyEllipse2D]] = []
     # World-frame measurement positions for plotting (polar → Cartesian)
     measurements_world: List[List[NDArray[np.float64]]] = []
 
@@ -393,13 +405,20 @@ def run_mot_demo(
         }
         track_history.append(frame_state)
 
-        # Snapshot ellipses for confirmed tracks (no second RNG pass needed)
+        # Confirmed-state history for animation markers
+        confirmed_ids = {t.track_id for t in manager.get_confirmed_tracks()}
+        track_confirmed_history.append(
+            {t.track_id: t.track_id in confirmed_ids for t in manager.get_all_tracks()}
+        )
+
+        # Per-frame ellipses for confirmed tracks (used by animation)
+        ellipse_all_frames.append(
+            {t.track_id: t.get_uncertainty_ellipse() for t in manager.get_confirmed_tracks()}
+        )
+
+        # Snapshot ellipses every ELLIPSE_FRAME_STEP frames (used by static plot)
         if k % ELLIPSE_FRAME_STEP == 0:
-            frame_ellipses: Dict[int, ekf.UncertaintyEllipse2D] = {
-                t.track_id: t.get_uncertainty_ellipse()
-                for t in manager.get_confirmed_tracks()
-            }
-            ellipse_snapshots.append((k, frame_ellipses))
+            ellipse_snapshots.append((k, dict(ellipse_all_frames[-1])))
 
         # Convert measurements to world for the animation/plot
         frame_world = [
@@ -412,9 +431,11 @@ def run_mot_demo(
     res: Dict[str, Any] = {
         "true_trajectories": trajectories,
         "track_history": track_history,
+        "track_confirmed_history": track_confirmed_history,
         "all_measurements": per_frame_meas,
         "measurements_world": measurements_world,
         "ellipse_snapshots": ellipse_snapshots,
+        "ellipse_all_frames": ellipse_all_frames,
         "n_frames": n_frames,
     }
     res["metrics"] = compute_mot_metrics(res)
@@ -495,25 +516,29 @@ def plot_mot_results(
 # Animation
 # ---------------------------------------------------------------------------
 
+_TRAIL_FULL: int = 20   # frames drawn at full opacity
+_TRAIL_ALPHA_DIM: float = 0.18
+_TRAIL_ALPHA_BRIGHT: float = 0.92
+
+
 def make_mot_animation(res: Dict[str, Any], *, fps: int = 15) -> Any:
     """
     Build a ``FuncAnimation`` that plays back the MOT demo frame by frame.
 
-    Shows ground-truth paths (built up incrementally), live measurement dots,
-    estimated track paths, and uncertainty ellipses for confirmed tracks.
+    Rendering features:
+    - Fading trails: last ``_TRAIL_FULL`` frames at full alpha, earlier at dim alpha.
+    - Raw measurements as red × markers so the data-association problem is visible.
+    - State-based track tips: confirmed = filled triangle, tentative = hollow circle.
+    - Per-frame uncertainty ellipses for confirmed tracks.
     """
     from matplotlib.animation import FuncAnimation
 
     trajectories = res["true_trajectories"]
     track_history = res["track_history"]
+    confirmed_history = res.get("track_confirmed_history", [])
     measurements_world = res["measurements_world"]
-    ellipse_snapshots = res["ellipse_snapshots"]
+    ellipse_all_frames = res.get("ellipse_all_frames", [])
     n_frames = res["n_frames"]
-
-    # Index ellipse snapshots by frame
-    ellipse_by_frame: Dict[int, Dict[int, ekf.UncertaintyEllipse2D]] = {
-        k: fe for k, fe in ellipse_snapshots
-    }
 
     cmap = plt.get_cmap("tab10")
     track_paths: Dict[int, List[NDArray[np.float64]]] = {}
@@ -521,9 +546,18 @@ def make_mot_animation(res: Dict[str, Any], *, fps: int = 15) -> Any:
         for tid, pos in frame_state.items():
             track_paths.setdefault(tid, []).append(pos)
 
-    # Assign consistent colors by first-appearance order
+    # Assign stable colors by first-appearance order
     sorted_ids = sorted(track_paths.keys())
     color_map: Dict[int, Any] = {tid: cmap(i % 10) for i, tid in enumerate(sorted_ids)}
+
+    # Pre-build per-track position arrays indexed by frame (None when absent)
+    pos_by_tid_frame: Dict[int, List[Optional[NDArray[np.float64]]]] = {
+        tid: [None] * n_frames for tid in sorted_ids
+    }
+    for k, frame_state in enumerate(track_history):
+        for tid, pos in frame_state.items():
+            if tid in pos_by_tid_frame:
+                pos_by_tid_frame[tid][k] = pos
 
     fig_anim, ax_anim = plt.subplots(figsize=(8, 7))
     ax_anim.set_xlim(-20, mot_sim.WORLD_SIZE_M + 20)
@@ -531,14 +565,7 @@ def make_mot_animation(res: Dict[str, Any], *, fps: int = 15) -> Any:
     ax_anim.set_aspect("equal")
     ax_anim.grid(True, alpha=0.25)
 
-    def init():
-        ax_anim.cla()
-        ax_anim.set_xlim(-20, mot_sim.WORLD_SIZE_M + 20)
-        ax_anim.set_ylim(-20, mot_sim.WORLD_SIZE_M + 20)
-        ax_anim.set_aspect("equal")
-        ax_anim.grid(True, alpha=0.25)
-
-    def update_frame(k: int) -> None:
+    def _draw_frame(k: int) -> None:
         ax_anim.cla()
         ax_anim.set_xlim(-20, mot_sim.WORLD_SIZE_M + 20)
         ax_anim.set_ylim(-20, mot_sim.WORLD_SIZE_M + 20)
@@ -546,44 +573,72 @@ def make_mot_animation(res: Dict[str, Any], *, fps: int = 15) -> Any:
         ax_anim.grid(True, alpha=0.25)
         ax_anim.set_title(f"MOT demo — frame {k:03d} / {n_frames - 1}", fontsize=10)
 
-        # Ground truth up to frame k
+        # Ground truth up to frame k (faint dashed)
         for traj in trajectories:
             ax_anim.plot(traj[:k+1, 0], traj[:k+1, 1],
-                         color="0.6", linewidth=1.2, linestyle="--", zorder=1)
+                         color="0.65", linewidth=1.1, linestyle="--", zorder=1)
 
-        # Current measurements (dots)
+        # Raw measurements — x markers so clutter is distinguishable from tracks
         for pt in measurements_world[k]:
-            ax_anim.scatter(pt[0], pt[1], color="red", s=12, alpha=0.6, zorder=5)
+            ax_anim.scatter(pt[0], pt[1], color="crimson", marker="x", s=25,
+                            alpha=0.75, linewidths=1.1, zorder=5)
 
-        # Track paths up to frame k (look up positions from track_history)
-        frame_tids = set(track_history[k].keys())
-        for tid in sorted_ids:
-            positions_up_to_k = []
-            for j in range(k + 1):
-                if tid in track_history[j]:
-                    positions_up_to_k.append(track_history[j][tid])
-            if not positions_up_to_k:
-                continue
-            xy = np.array(positions_up_to_k)
-            color = color_map[tid]
-            ax_anim.plot(xy[:, 0], xy[:, 1], color=color, linewidth=1.6, zorder=3)
-            if tid in frame_tids:
-                ax_anim.scatter(xy[-1, 0], xy[-1, 1], color=color,
-                                marker="^", s=55, zorder=4)
-
-        # Uncertainty ellipses at this frame (if snapshot exists)
-        frame_ellipses = ellipse_by_frame.get(k, {})
+        # Per-frame ellipses for confirmed tracks
+        frame_ellipses = ellipse_all_frames[k] if k < len(ellipse_all_frames) else {}
         for tid, ell in frame_ellipses.items():
             color = color_map.get(tid, "C0")
             e = Ellipse(
                 ell.center, width=ell.width, height=ell.height, angle=ell.angle_deg,
-                facecolor="none", edgecolor=color, linewidth=0.9, alpha=0.6, zorder=2,
+                facecolor="none", edgecolor=color, linewidth=0.9, alpha=0.55, zorder=2,
             )
             ax_anim.add_patch(e)
 
+        # Track trails with fading and state-dependent tip markers
+        confirmed_map = confirmed_history[k] if k < len(confirmed_history) else {}
+        for tid in sorted_ids:
+            # Collect (frame_index, position) for all frames where this track exists up to k
+            present: List[Tuple[int, NDArray[np.float64]]] = [
+                (j, pos_by_tid_frame[tid][j])
+                for j in range(k + 1)
+                if pos_by_tid_frame[tid][j] is not None
+            ]
+            if not present:
+                continue
+
+            color = color_map[tid]
+            frames_present, positions = zip(*present)
+            # Only draw a segment if track is visible at this frame
+            if frames_present[-1] != k:
+                continue
+
+            xy = np.array(positions)
+            n = len(xy)
+
+            if n > 1:
+                split = max(1, n - _TRAIL_FULL)
+                # Older portion — dim
+                if split > 1:
+                    ax_anim.plot(xy[:split, 0], xy[:split, 1],
+                                 color=color, linewidth=1.0,
+                                 alpha=_TRAIL_ALPHA_DIM, zorder=3)
+                # Recent portion — bright
+                ax_anim.plot(xy[split-1:, 0], xy[split-1:, 1],
+                             color=color, linewidth=2.0,
+                             alpha=_TRAIL_ALPHA_BRIGHT, zorder=3)
+
+            # Tip marker: confirmed → filled triangle, tentative → hollow circle
+            tip_x, tip_y = float(xy[-1, 0]), float(xy[-1, 1])
+            if confirmed_map.get(tid, False):
+                ax_anim.scatter(tip_x, tip_y, color=color, marker="^",
+                                s=65, zorder=4, alpha=_TRAIL_ALPHA_BRIGHT)
+            else:
+                ax_anim.scatter(tip_x, tip_y, color=color, marker="o",
+                                s=55, facecolors="none", edgecolors=color,
+                                linewidths=1.6, zorder=4, alpha=0.85)
+
     anim = FuncAnimation(
-        fig_anim, update_frame, frames=n_frames,
-        init_func=init, interval=1000 // fps, blit=False,
+        fig_anim, _draw_frame, frames=n_frames,
+        init_func=lambda: _draw_frame(0), interval=1000 // fps, blit=False,
     )
     return anim
 
