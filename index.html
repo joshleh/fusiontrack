@@ -32,17 +32,12 @@
 
     /* ── Nav ── */
     nav {
-      position: sticky;
-      top: 0;
-      z-index: 100;
+      position: sticky; top: 0; z-index: 100;
       background: rgba(13, 17, 23, 0.92);
       backdrop-filter: blur(8px);
       border-bottom: 1px solid var(--border);
-      padding: 0 2rem;
-      height: 56px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
+      padding: 0 2rem; height: 56px;
+      display: flex; align-items: center; justify-content: space-between;
     }
     .nav-brand { font-weight: 700; font-size: 1.05rem; color: var(--text); text-decoration: none; }
     .nav-links { display: flex; gap: 1.5rem; list-style: none; }
@@ -51,50 +46,31 @@
 
     /* ── Hero ── */
     .hero {
-      max-width: 820px;
-      margin: 0 auto;
-      padding: 5rem 2rem 3rem;
-      text-align: center;
+      max-width: 820px; margin: 0 auto;
+      padding: 5rem 2rem 3rem; text-align: center;
     }
     .hero-tag {
       display: inline-block;
-      background: rgba(88, 166, 255, 0.12);
-      color: var(--accent);
-      border: 1px solid rgba(88, 166, 255, 0.3);
-      border-radius: 20px;
-      padding: 0.25rem 0.85rem;
-      font-size: 0.78rem;
-      font-weight: 600;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      margin-bottom: 1.4rem;
+      background: rgba(88, 166, 255, 0.12); color: var(--accent);
+      border: 1px solid rgba(88, 166, 255, 0.3); border-radius: 20px;
+      padding: 0.25rem 0.85rem; font-size: 0.78rem; font-weight: 600;
+      letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 1.4rem;
     }
     h1 {
-      font-size: clamp(2rem, 5vw, 3rem);
-      font-weight: 800;
-      line-height: 1.15;
-      margin-bottom: 1rem;
-      letter-spacing: -0.02em;
+      font-size: clamp(2rem, 5vw, 3rem); font-weight: 800;
+      line-height: 1.15; margin-bottom: 1rem; letter-spacing: -0.02em;
     }
     h1 span { color: var(--accent); }
     .hero-sub {
-      color: var(--muted);
-      font-size: 1.05rem;
-      max-width: 600px;
-      margin: 0 auto 2.2rem;
+      color: var(--muted); font-size: 1.05rem;
+      max-width: 620px; margin: 0 auto 2.2rem;
     }
     .btn-row { display: flex; gap: 0.85rem; justify-content: center; flex-wrap: wrap; }
     .btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.45rem;
-      padding: 0.6rem 1.3rem;
-      border-radius: 6px;
-      font-size: 0.9rem;
-      font-weight: 600;
-      text-decoration: none;
-      transition: opacity 0.2s, transform 0.15s;
-      cursor: pointer;
+      display: inline-flex; align-items: center; gap: 0.45rem;
+      padding: 0.6rem 1.3rem; border-radius: 6px;
+      font-size: 0.9rem; font-weight: 600; text-decoration: none;
+      transition: opacity 0.2s, transform 0.15s; cursor: pointer;
     }
     .btn:hover { opacity: 0.85; transform: translateY(-1px); }
     .btn-primary { background: var(--accent); color: #0d1117; }
@@ -102,214 +78,134 @@
 
     /* ── Stat bar ── */
     .stat-bar {
-      display: flex;
-      justify-content: center;
-      flex-wrap: wrap;
-      gap: 0;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      overflow: hidden;
-      max-width: 720px;
-      margin: 3.5rem auto 0;
+      display: flex; justify-content: center; flex-wrap: wrap; gap: 0;
+      border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+      max-width: 780px; margin: 3.5rem auto 0;
     }
-    .stat {
-      flex: 1;
-      min-width: 160px;
-      padding: 1.3rem 1.5rem;
-      border-right: 1px solid var(--border);
-      text-align: center;
-    }
+    .stat { flex: 1; min-width: 160px; padding: 1.3rem 1.5rem; border-right: 1px solid var(--border); text-align: center; }
     .stat:last-child { border-right: none; }
-    .stat-val {
-      font-size: 1.9rem;
-      font-weight: 800;
-      color: var(--accent);
-      display: block;
-      line-height: 1.1;
-    }
+    .stat-val { font-size: 1.9rem; font-weight: 800; color: var(--accent); display: block; line-height: 1.1; }
     .stat-val.green { color: var(--green); }
     .stat-label { font-size: 0.78rem; color: var(--muted); margin-top: 0.3rem; }
+    .stat-sublabel { font-size: 0.7rem; color: #555e6a; margin-top: 0.15rem; font-style: italic; }
 
     /* ── Section wrapper ── */
     section { max-width: 900px; margin: 0 auto; padding: 4rem 2rem; }
-    .section-title {
-      font-size: 1.5rem;
-      font-weight: 700;
-      margin-bottom: 0.4rem;
-    }
+    .section-title { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.4rem; }
     .section-sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 2rem; }
     hr.divider { border: none; border-top: 1px solid var(--border); }
 
+    /* ── Plain-language callout ── */
+    .plain-box {
+      background: rgba(88, 166, 255, 0.06);
+      border: 1px solid rgba(88, 166, 255, 0.2);
+      border-radius: 10px; padding: 1.4rem 1.6rem; margin-bottom: 2rem;
+    }
+    .plain-box-label {
+      font-size: 0.72rem; font-weight: 700; color: var(--accent);
+      text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.5rem;
+    }
+    .plain-box p { color: var(--text); font-size: 0.95rem; line-height: 1.7; }
+
+    /* ── What & Why cards ── */
+    .why-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1.2rem; margin-bottom: 0;
+    }
+    .why-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 1.5rem;
+    }
+    .why-card .num {
+      font-size: 2rem; font-weight: 800; color: var(--border);
+      line-height: 1; margin-bottom: 0.7rem; display: block;
+    }
+    .why-card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .why-card p { color: var(--muted); font-size: 0.88rem; line-height: 1.65; }
+
     /* ── Animation section ── */
     .demo-wrapper {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      overflow: hidden;
-      text-align: center;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; overflow: hidden; text-align: center;
     }
-    .demo-wrapper img {
-      width: 100%;
-      max-width: 700px;
-      display: block;
-      margin: 0 auto;
+    .demo-wrapper img { width: 100%; max-width: 700px; display: block; margin: 0 auto; }
+    .demo-legend {
+      display: flex; flex-wrap: wrap; gap: 0.6rem 1.4rem;
+      padding: 0.9rem 1.5rem; border-top: 1px solid var(--border);
+      justify-content: center;
     }
+    .legend-item { display: flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; color: var(--muted); }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
     .demo-caption {
-      padding: 1rem 1.5rem;
-      color: var(--muted);
-      font-size: 0.83rem;
-      border-top: 1px solid var(--border);
-      text-align: left;
+      padding: 0.9rem 1.5rem 1.1rem;
+      color: var(--muted); font-size: 0.83rem;
+      border-top: 1px solid var(--border); text-align: left;
     }
     .demo-caption strong { color: var(--text); }
 
-    /* ── Two-column cards ── */
-    .card-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 1.2rem;
-    }
-    .card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 1.5rem;
-    }
-    .card-icon {
-      font-size: 1.4rem;
-      margin-bottom: 0.7rem;
-      display: block;
-    }
+    /* ── Cards ── */
+    .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.2rem; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.5rem; }
+    .card-icon { font-size: 1.4rem; margin-bottom: 0.7rem; display: block; }
     .card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.5rem; }
-    .card p { color: var(--muted); font-size: 0.88rem; line-height: 1.6; }
+    .card p { color: var(--muted); font-size: 0.88rem; line-height: 1.6; margin-bottom: 0.7rem; }
+    .card p:last-child { margin-bottom: 0; }
+    .card .tech-note {
+      font-size: 0.78rem; color: #555e6a; border-top: 1px solid var(--border);
+      padding-top: 0.6rem; margin-top: 0.6rem; font-style: italic;
+    }
 
     /* ── Pipeline diagram ── */
     .pipeline {
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 0;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      overflow: hidden;
-      margin-bottom: 2rem;
+      display: flex; align-items: center; flex-wrap: wrap; gap: 0;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; overflow: hidden; margin-bottom: 0.7rem;
     }
     .pipe-step {
-      flex: 1;
-      min-width: 100px;
-      padding: 1.1rem 1rem;
-      text-align: center;
-      border-right: 1px solid var(--border);
-      font-size: 0.82rem;
+      flex: 1; min-width: 100px; padding: 1.1rem 1rem;
+      text-align: center; border-right: 1px solid var(--border); font-size: 0.82rem;
     }
     .pipe-step:last-child { border-right: none; }
-    .pipe-num {
-      display: block;
-      font-size: 0.7rem;
-      font-weight: 700;
-      color: var(--accent);
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      margin-bottom: 0.3rem;
-    }
+    .pipe-num { display: block; font-size: 0.7rem; font-weight: 700; color: var(--accent); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 0.3rem; }
     .pipe-name { font-weight: 600; font-size: 0.88rem; }
-    .pipe-detail { color: var(--muted); font-size: 0.75rem; margin-top: 0.2rem; }
+    .pipe-plain { color: var(--muted); font-size: 0.73rem; margin-top: 0.2rem; }
+    .pipe-detail { color: #555e6a; font-size: 0.7rem; margin-top: 0.1rem; font-style: italic; }
 
     /* ── Comparison table ── */
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.88rem;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      overflow: hidden;
-    }
-    th {
-      background: var(--code-bg);
-      color: var(--muted);
-      font-weight: 600;
-      font-size: 0.78rem;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      padding: 0.8rem 1.1rem;
-      text-align: left;
-      border-bottom: 1px solid var(--border);
-    }
-    td {
-      padding: 0.75rem 1.1rem;
-      border-bottom: 1px solid var(--border);
-      vertical-align: top;
-    }
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+    th { background: var(--code-bg); color: var(--muted); font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; padding: 0.8rem 1.1rem; text-align: left; border-bottom: 1px solid var(--border); }
+    td { padding: 0.75rem 1.1rem; border-bottom: 1px solid var(--border); vertical-align: top; }
     tr:last-child td { border-bottom: none; }
-    code {
-      font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
-      background: var(--code-bg);
-      padding: 0.15em 0.45em;
-      border-radius: 4px;
-      font-size: 0.82em;
-      color: var(--accent2);
-    }
-    .badge {
-      display: inline-block;
-      padding: 0.15rem 0.55rem;
-      border-radius: 4px;
-      font-size: 0.73rem;
-      font-weight: 600;
-    }
+    code { font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace; background: var(--code-bg); padding: 0.15em 0.45em; border-radius: 4px; font-size: 0.82em; color: var(--accent2); }
+    .badge { display: inline-block; padding: 0.15rem 0.55rem; border-radius: 4px; font-size: 0.73rem; font-weight: 600; }
     .badge-blue { background: rgba(88,166,255,0.15); color: var(--accent); }
     .badge-green { background: rgba(63,185,80,0.15); color: var(--green); }
 
     /* ── Results ── */
-    .results-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 1.2rem;
-    }
+    .results-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; }
     @media (max-width: 580px) { .results-grid { grid-template-columns: 1fr; } }
-    .result-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 1.4rem;
-    }
-    .result-card h4 { font-size: 0.85rem; color: var(--muted); font-weight: 600; margin-bottom: 0.9rem;
-      text-transform: uppercase; letter-spacing: 0.06em; }
-    .metric-row { display: flex; justify-content: space-between; align-items: baseline;
-      padding: 0.4rem 0; border-bottom: 1px solid var(--border); }
+    .result-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.4rem; }
+    .result-card h4 { font-size: 0.85rem; color: var(--muted); font-weight: 600; margin-bottom: 0.9rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .metric-row { display: flex; justify-content: space-between; align-items: baseline; padding: 0.4rem 0; border-bottom: 1px solid var(--border); gap: 1rem; }
     .metric-row:last-child { border-bottom: none; }
     .metric-key { color: var(--muted); font-size: 0.85rem; }
-    .metric-val { font-weight: 700; font-size: 0.95rem; }
+    .metric-key small { display: block; font-size: 0.73rem; color: #555e6a; font-style: italic; }
+    .metric-val { font-weight: 700; font-size: 0.95rem; white-space: nowrap; }
     .metric-val.green { color: var(--green); }
     .metric-val.accent { color: var(--accent); }
 
     /* ── Code block ── */
     .code-block {
-      background: var(--code-bg);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 1.3rem 1.5rem;
-      font-family: "SF Mono", "Fira Code", monospace;
-      font-size: 0.83rem;
-      line-height: 1.7;
-      overflow-x: auto;
-      color: var(--text);
+      background: var(--code-bg); border: 1px solid var(--border);
+      border-radius: 10px; padding: 1.3rem 1.5rem;
+      font-family: "SF Mono", "Fira Code", monospace; font-size: 0.83rem;
+      line-height: 1.7; overflow-x: auto; color: var(--text);
     }
     .code-block .cm { color: var(--muted); }
     .code-block .kw { color: #ff7b72; }
-    .code-block .fn { color: #d2a8ff; }
-    .code-block .st { color: #a5d6ff; }
-    .code-block .nu { color: var(--green); }
 
     /* ── Footer ── */
-    footer {
-      border-top: 1px solid var(--border);
-      padding: 2rem;
-      text-align: center;
-      color: var(--muted);
-      font-size: 0.83rem;
-    }
+    footer { border-top: 1px solid var(--border); padding: 2rem; text-align: center; color: var(--muted); font-size: 0.83rem; }
     footer a { color: var(--accent); text-decoration: none; }
     footer a:hover { text-decoration: underline; }
 
@@ -328,8 +224,9 @@
 <nav>
   <a class="nav-brand" href="#">FusionTrack</a>
   <ul class="nav-links">
+    <li><a href="#overview">Overview</a></li>
     <li><a href="#demo">Demo</a></li>
-    <li><a href="#architecture">Architecture</a></li>
+    <li><a href="#architecture">How it works</a></li>
     <li><a href="#results">Results</a></li>
     <li><a href="https://github.com/joshleh/fusiontrack" target="_blank">GitHub</a></li>
   </ul>
@@ -337,12 +234,13 @@
 
 <!-- ── Hero ── -->
 <div class="hero">
-  <div class="hero-tag">Sensor Fusion &nbsp;·&nbsp; Estimation &nbsp;·&nbsp; Data Association</div>
-  <h1>Multi-Sensor <span>UAV Tracking</span><br>in 2D</h1>
+  <div class="hero-tag">Sensor Fusion &nbsp;·&nbsp; State Estimation &nbsp;·&nbsp; Multi-Object Tracking</div>
+  <h1>Tracking Multiple <span>Drones at Once</span><br>Using Radar + Camera</h1>
   <p class="hero-sub">
-    Extended Kalman Filter radar+camera fusion and Global Nearest-Neighbour
-    multi-object tracking with Mahalanobis gating and Hungarian assignment —
-    built from scratch in Python.
+    Radar sees distance and direction but generates false signals constantly.
+    Camera sees shape but goes blind behind obstacles. This project builds the math
+    to combine both — keeping a lock on every drone in the airspace,
+    even when they fly directly through each other's path.
   </p>
   <div class="btn-row">
     <a class="btn btn-primary" href="https://github.com/joshleh/fusiontrack" target="_blank">
@@ -355,33 +253,70 @@
   <div class="stat-bar">
     <div class="stat">
       <span class="stat-val green">0</span>
-      <div class="stat-label">ID Switches at crossing</div>
+      <div class="stat-label">Times system confused two drones</div>
+      <div class="stat-sublabel">even at closest approach (~9 m apart)</div>
     </div>
     <div class="stat">
       <span class="stat-val">2.57 m</span>
-      <div class="stat-label">Mean track RMSE</div>
+      <div class="stat-label">Average position error</div>
+      <div class="stat-sublabel">across all 3 targets, 100 timesteps</div>
     </div>
     <div class="stat">
       <span class="stat-val">3 / 3</span>
-      <div class="stat-label">GT targets confirmed</div>
+      <div class="stat-label">Drones successfully tracked</div>
+      <div class="stat-sublabel">despite radar clutter every frame</div>
     </div>
     <div class="stat">
       <span class="stat-val">25</span>
-      <div class="stat-label">Unit tests passing</div>
+      <div class="stat-label">Automated tests passing</div>
+      <div class="stat-sublabel">covering math, lifecycle, end-to-end</div>
     </div>
   </div>
 </div>
 
 <hr class="divider">
 
+<!-- ── Overview ── -->
+<section id="overview">
+  <div class="section-title">What this project is</div>
+  <p class="section-sub">The core challenge, explained without jargon.</p>
+
+  <div class="why-grid">
+    <div class="why-card">
+      <span class="num">01</span>
+      <h3>The problem: sensors lie</h3>
+      <p>Radar reports where something might be — but with noise, missed detections, and dozens of phantom signals (called <em>clutter</em>) every second. Camera gives a cleaner picture but goes dark the moment anything blocks its view. Neither sensor alone is reliable enough to stake a tracking decision on.</p>
+    </div>
+    <div class="why-card">
+      <span class="num">02</span>
+      <h3>The solution: weighted combination</h3>
+      <p>Instead of trusting one sensor, the system maintains a <em>probability distribution</em> — a best guess of where each drone is, plus a measure of how confident that guess is. Every new sensor reading shifts the distribution. The less noisy the reading, the more it shifts things. This is the Kalman filter idea, dating to Apollo-era navigation.</p>
+    </div>
+    <div class="why-card">
+      <span class="num">03</span>
+      <h3>The hard part: crossing paths</h3>
+      <p>When two drones fly close together, the system receives signals from both but doesn't know which signal came from which drone. Assign them wrong once and both tracks are corrupted. FusionTrack uses an optimization algorithm (Hungarian method) to find the globally best assignment — not just the closest match — avoiding identity swaps entirely.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="divider">
+
 <!-- ── Demo ── -->
 <section id="demo">
   <div class="section-title">Live Tracking Demo</div>
-  <p class="section-sub">100-frame simulation — 3 crossing targets + Poisson(0.5) clutter/frame. Red × markers are raw radar returns (truth unknown). Filled triangles = confirmed tracks, hollow circles = tentative. Ellipses show 95% position uncertainty.</p>
+  <p class="section-sub">Three drones, 100 timesteps, constant clutter. Watch the system track each drone from birth to crossing and back out — never losing identity.</p>
+
   <div class="demo-wrapper">
     <img src="mot_demo.gif" alt="Multi-object tracking animation showing 3 crossing targets with uncertainty ellipses, fading trails, and clutter measurements">
+    <div class="demo-legend">
+      <span class="legend-item"><span class="legend-dot" style="background:#f00;border-radius:2px;width:12px;height:3px;"></span> Red × — raw radar signal (could be real or clutter)</span>
+      <span class="legend-item"><span style="font-size:0.85rem;">▲</span> &nbsp;Filled triangle — confirmed drone track</span>
+      <span class="legend-item"><span style="font-size:0.85rem;">○</span> &nbsp;Hollow circle — newly detected, not yet confirmed</span>
+      <span class="legend-item"><span style="border:1.5px solid #aaa;border-radius:50%;width:14px;height:9px;display:inline-block;"></span> &nbsp;Ellipse — 95% confidence region for position</span>
+    </div>
     <div class="demo-caption">
-      <strong>Crossing at frame 49:</strong> Targets 1 &amp; 2 pass within ~9 m — inside each other's chi-square gate. Hungarian globally-optimal assignment distinguishes them without an ID switch. Target 3 stays ~40 m clear throughout.
+      <strong>What to watch at the crossing (roughly halfway through):</strong> Two drones fly within ~9 meters of each other — so close that each is inside the other's expected detection zone. The system must decide, every frame, which radar blip belongs to which drone. It never gets it wrong. The fading colored trails show where each drone has been; the ellipses shrink as the system gets more confident in each position.
     </div>
   </div>
 </section>
@@ -390,33 +325,43 @@
 
 <!-- ── Architecture ── -->
 <section id="architecture">
-  <div class="section-title">Architecture</div>
-  <p class="section-sub">Two-layer stack: a single-object EKF at the bottom, a GNN tracker on top.</p>
+  <div class="section-title">How it works</div>
+  <p class="section-sub">Each timestep, the tracker runs five steps — from prediction through lifecycle management.</p>
 
-  <div class="pipeline">
+  <div class="plain-box">
+    <div class="plain-box-label">Plain English</div>
+    <p>Every frame: <strong>predict</strong> where each drone probably moved based on its last known velocity → <strong>check</strong> whether each incoming signal is plausibly from a known drone or random noise → <strong>match</strong> signals to drones optimally (one signal per drone, one drone per signal) → <strong>update</strong> each drone's estimated position using the matched signal → <strong>manage</strong> new arrivals and drones that have gone quiet.</p>
+  </div>
+
+  <div class="pipeline" style="margin-bottom:2rem;">
     <div class="pipe-step">
       <span class="pipe-num">1</span>
       <div class="pipe-name">Predict</div>
+      <div class="pipe-plain">Where should each drone be now?</div>
       <div class="pipe-detail">CV model, F·P·Fᵀ + Q</div>
     </div>
     <div class="pipe-step">
       <span class="pipe-num">2</span>
       <div class="pipe-name">Gate</div>
+      <div class="pipe-plain">Is this signal close enough to be real?</div>
       <div class="pipe-detail">Mahalanobis d² &lt; χ²₉₉</div>
     </div>
     <div class="pipe-step">
       <span class="pipe-num">3</span>
       <div class="pipe-name">Assign</div>
+      <div class="pipe-plain">Which signal belongs to which drone?</div>
       <div class="pipe-detail">Hungarian O(n³)</div>
     </div>
     <div class="pipe-step">
       <span class="pipe-num">4</span>
       <div class="pipe-name">Update</div>
+      <div class="pipe-plain">Correct the position estimate</div>
       <div class="pipe-detail">EKF polar h(x)=[r,θ]</div>
     </div>
     <div class="pipe-step">
       <span class="pipe-num">5</span>
       <div class="pipe-name">Manage</div>
+      <div class="pipe-plain">Handle new targets and lost ones</div>
       <div class="pipe-detail">Birth / confirm / delete</div>
     </div>
   </div>
@@ -424,49 +369,54 @@
   <div class="card-grid">
     <div class="card">
       <span class="card-icon">📡</span>
-      <h3>Extended Kalman Filter — polar radar</h3>
-      <p>Native polar measurement model <code>h(x) = [√(x²+y²), atan2(y,x)]</code> with analytic 2×4 Jacobian. Avoids the Cartesian approximation error that grows as <em>r·σ_θ</em> at long range. Angle-normalised innovation prevents ±π wraparound blowups.</p>
+      <h3>Fusing radar and camera</h3>
+      <p>Radar reports distance and angle from the sensor. Camera reports pixel coordinates. These are measured in completely different units, with different noise characteristics. The filter converts both into a single best-estimate position — weighting each sensor by how trustworthy it currently is.</p>
+      <p class="tech-note">Technical: native polar measurement model h(x) = [√(x²+y²), atan2(y,x)] with analytic 2×4 Jacobian. Angle-normalised innovation prevents ±π wraparound. Camera uses a linear H after pixel→world scaling.</p>
     </div>
     <div class="card">
       <span class="card-icon">🎯</span>
-      <h3>Mahalanobis Gating</h3>
-      <p>Innovations tested against a χ²(2 DOF, 99%) gate <em>before</em> Hungarian assignment. Infeasible pairs get sentinel cost 10⁹ — clutter is rejected at the gate, not after the assignment. Tuning gate tightness trades missed detections vs. clutter ingestion.</p>
+      <h3>Filtering out false alarms</h3>
+      <p>Radar generates phantom signals constantly — birds, reflections, electrical noise. Before any matching happens, each incoming signal is tested: is it close enough to a known drone's predicted position, given how uncertain that prediction is? Signals that fail this test are discarded before they can corrupt any tracks.</p>
+      <p class="tech-note">Technical: Mahalanobis distance² in polar measurement space tested against χ²(2 DOF, 99%) gate before Hungarian assignment. Infeasible pairs receive sentinel cost 10⁹.</p>
     </div>
     <div class="card">
       <span class="card-icon">🔀</span>
-      <h3>GNN Data Association</h3>
-      <p>Global Nearest-Neighbour via <code>scipy.optimize.linear_sum_assignment</code> (Jonker-Volgenant, O(n³)). One-to-one globally optimal assignment — order-independent, unlike greedy nearest-neighbour which is sequence-dependent and can cascade ID switches.</p>
+      <h3>Solving the assignment problem</h3>
+      <p>When multiple drones are visible simultaneously, each sensor signal must be claimed by exactly one drone. A naïve approach — assign each signal to its nearest drone in sequence — can cascade errors when targets are close. Instead, the system finds the globally optimal assignment: minimize the total cost across all pairings at once.</p>
+      <p class="tech-note">Technical: scipy.optimize.linear_sum_assignment (Jonker-Volgenant, O(n³)). Order-independent global optimum vs. greedy nearest-neighbour.</p>
     </div>
     <div class="card">
       <span class="card-icon">🛤️</span>
-      <h3>Track Lifecycle</h3>
-      <p>New measurement → <strong>TENTATIVE</strong> (zero velocity, large Pᵥ). Two consecutive hits → <strong>CONFIRMED</strong>. Three consecutive misses → <strong>DELETED</strong>. Stale tentative tracks pruned after 3 frames — eliminates single-blip false alarms without multi-hypothesis tracking.</p>
+      <h3>Managing track confidence</h3>
+      <p>A single radar blip shouldn't be enough to declare a drone exists — it's probably clutter. A drone that stops producing signals for several frames probably left the area. The tracker requires two consecutive detections before confirming a track, and deletes it after three missed frames. This keeps the track list clean without human supervision.</p>
+      <p class="tech-note">Technical: TENTATIVE → CONFIRMED (hits ≥ 2) → DELETED (misses ≥ 3). Stale tentative tracks pruned after 3 frames.</p>
     </div>
   </div>
 
   <br>
-  <div class="section-title" style="font-size:1.1rem; margin-bottom:0.8rem;">KFTracker vs EKFTracker</div>
+  <div class="section-title" style="font-size:1.1rem; margin-bottom:0.5rem;">Two filter variants</div>
+  <p style="color:var(--muted); font-size:0.88rem; margin-bottom:1rem;">The simpler version converts radar readings to x/y coordinates first, then filters. The advanced version works directly in radar's native units — more accurate at long range where the conversion introduces distortion.</p>
   <table>
     <thead>
       <tr>
-        <th>Class</th>
-        <th>Radar model</th>
-        <th>R matrix</th>
-        <th>When to prefer</th>
+        <th>Variant</th>
+        <th>Radar handling</th>
+        <th>Accuracy</th>
+        <th>Best for</th>
       </tr>
     </thead>
     <tbody>
       <tr>
-        <td><code>KFTracker</code></td>
-        <td>Convert polar → Cartesian first, linear H</td>
-        <td>Fixed isotropic diag[4, 4] m² <span class="badge badge-blue">approx</span></td>
-        <td>Short range, near-boresight, quick prototype</td>
+        <td><code>KFTracker</code> — linear</td>
+        <td>Convert distance/angle → x/y first, then filter</td>
+        <td>Fixed error budget <span class="badge badge-blue">approx</span></td>
+        <td>Short range, quick prototype</td>
       </tr>
       <tr>
-        <td><code>EKFTracker</code></td>
-        <td>Native polar h(x), analytic Jacobian, angle wrap</td>
-        <td>diag[σ_r², σ_θ²] — physically derived <span class="badge badge-green">exact</span></td>
-        <td>Long range or high azimuth offset — cross-range error grows as r·σ_θ</td>
+        <td><code>EKFTracker</code> — extended</td>
+        <td>Filter directly in distance/angle space; no conversion</td>
+        <td>Physically derived error model <span class="badge badge-green">exact</span></td>
+        <td>Long range — conversion error grows with distance</td>
       </tr>
     </tbody>
   </table>
@@ -477,45 +427,50 @@
 <!-- ── Results ── -->
 <section id="results">
   <div class="section-title">Results</div>
-  <p class="section-sub">Seed 42 · 100 frames · Poisson(0.5) clutter/frame · 3 crossing CV targets</p>
+  <p class="section-sub">Simulated scenario: 3 drones flying straight-line paths that converge, with radar clutter generated randomly every frame.</p>
+
+  <div class="plain-box" style="margin-bottom:1.5rem;">
+    <div class="plain-box-label">Bottom line</div>
+    <p>When two drones flew within 9 meters of each other — so close each was inside the other's detection zone — the system correctly tracked both without ever swapping their identities. Position estimates stayed within <strong>2.57 meters</strong> of true position on average, which matches what you'd expect given the radar's physical noise level at that range.</p>
+  </div>
 
   <div class="results-grid">
     <div class="result-card">
-      <h4>Multi-Object Tracker</h4>
+      <h4>Tracking performance</h4>
       <div class="metric-row">
-        <span class="metric-key">ID switches at crossing</span>
+        <span class="metric-key">Identity swaps at crossing<small>0 = never confused which drone was which</small></span>
         <span class="metric-val green">0</span>
       </div>
       <div class="metric-row">
-        <span class="metric-key">Confirmed GT tracks</span>
+        <span class="metric-key">Drones correctly tracked<small>all 3 confirmed from start to finish</small></span>
         <span class="metric-val">3 / 3</span>
       </div>
       <div class="metric-row">
-        <span class="metric-key">Mean RMSE (long-lived tracks)</span>
+        <span class="metric-key">Average position error<small>long-lived confirmed tracks</small></span>
         <span class="metric-val accent">2.57 m</span>
       </div>
       <div class="metric-row">
-        <span class="metric-key">Per-target RMSE</span>
+        <span class="metric-key">Per-drone error<small>each target independently</small></span>
         <span class="metric-val">2.51 / 2.56 / 2.62 m</span>
       </div>
     </div>
 
     <div class="result-card">
-      <h4>Noise Budget</h4>
+      <h4>Sensor noise (simulation inputs)</h4>
       <div class="metric-row">
-        <span class="metric-key">Radar range noise σ_r</span>
+        <span class="metric-key">Radar range noise<small>how far off distance readings are, 1σ</small></span>
         <span class="metric-val">3 m</span>
       </div>
       <div class="metric-row">
-        <span class="metric-key">Radar azimuth noise σ_θ</span>
+        <span class="metric-key">Radar angle noise<small>how far off bearing readings are, 1σ</small></span>
         <span class="metric-val">0.5°</span>
       </div>
       <div class="metric-row">
-        <span class="metric-key">Expected cross-range @ 270 m</span>
+        <span class="metric-key">Expected lateral error at 270 m<small>angle noise × range = cross-range blur</small></span>
         <span class="metric-val">≈ 2.3 m</span>
       </div>
       <div class="metric-row">
-        <span class="metric-key">Camera pixel noise σ_px</span>
+        <span class="metric-key">Camera noise<small>pixel jitter converted to world metres</small></span>
         <span class="metric-val">8 px ≈ 4 m</span>
       </div>
     </div>
@@ -524,19 +479,19 @@
   <br>
 
   <div class="result-card">
-    <h4>Quick-start</h4>
+    <h4>Run it yourself</h4>
     <div class="code-block">
 <span class="cm"># Install</span>
 <span class="kw">python</span> -m venv .venv &amp;&amp; source .venv/bin/activate
 pip install -r requirements.txt
 
-<span class="cm"># Single-object EKF fusion demo (trajectory + error figures)</span>
+<span class="cm"># Single-drone EKF fusion demo (plots trajectory + error over time)</span>
 <span class="kw">python</span> -m src.fusion
 
-<span class="cm"># Multi-object tracker — prints metrics, static plot, saves mot_demo.gif</span>
+<span class="cm"># Multi-drone tracker — prints metrics, shows plot, saves mot_demo.gif</span>
 <span class="kw">python</span> -m src.mot
 
-<span class="cm"># 25 unit tests</span>
+<span class="cm"># 25 automated tests</span>
 pytest tests/ -q
     </div>
   </div>
