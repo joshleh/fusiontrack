@@ -3,7 +3,7 @@ Synthetic range–azimuth radar returns with missed detections, polar noise, and
 
 This file exists to feed the fusion engine with *physically named* error sources.
 It does not model multipath, range folding, Doppler, or any clutter model beyond
-a simple i.i.d. false-alarm event — those can be added later.
+a simple i.i.d. false-alarm event; those can be added later.
 """
 
 from __future__ import annotations
@@ -20,10 +20,10 @@ from . import utils
 # ---------------------------------------------------------------------------
 # Physical / statistical sensor parameters
 # ---------------------------------------------------------------------------
-# 1-sigma error on range *after* the sensor's internal tracking (meters) —
+# 1-sigma error on range *after* the sensor's internal tracking (meters):
 # INTERVIEW CRITICAL: real systems split thermal noise, range gate straddle, etc.
 RADAR_RANGE_NOISE_STD_M: Final[float] = 3.0
-# 1-sigma error on *angle* in radians (0.5°) — at long range, cross-range = r * σ_θ
+# 1-sigma error on *angle* in radians (0.5°): at long range, cross-range = r * σ_θ
 RADAR_AZIMUTH_NOISE_STD_RAD: Final[float] = float(np.radians(0.5))
 # P(no detection) when the target is line-of-sight: models multipath / beam shape / SNR fades.
 RADAR_DETECTION_MISS_PROB: Final[float] = 0.15
@@ -35,7 +35,7 @@ RADAR_FALSE_ALARM_PROB: Final[float] = 0.05
 # for a spurious (r, az) pair, so the EKF is stressed but not sent to a random
 # field corner every time.
 FALSE_ALARM_MAX_OFFSET_M: Final[float] = 40.0
-# Radar origin in world frame (meters) — the sensor is co-located with the world origin
+# Radar origin in world frame (meters): the sensor is co-located with the world origin
 # for the demo; a moving platform would time-vary this.
 RADAR_ORIGIN_X_M: Final[float] = 0.0
 RADAR_ORIGIN_Y_M: Final[float] = 0.0
@@ -66,7 +66,7 @@ def radar_measurement_from_true_position(
     What this simulates, in order:
     1) **Missed detection** (sn-radar, beam loss): no return, so fusion must coast.
     2) **False alarm** (clutter, birds): a nearby ghost return that is not a simple
-       Gaussian "second peak" in the MHT sense — for this single-object demo, we
+       Gaussian "second peak" in the MHT sense; for this single-object demo, we
        return *one* measurement that is intentionally biased when the FA fires.
     3) **Normal hit**: add Gaussian noise in range and in azimuth *before* the
        Cartesian hand-off in fusion.
@@ -80,13 +80,13 @@ def radar_measurement_from_true_position(
     rng
         NumPy ``Generator`` for reproducible sequences.
     """
-    # 1) Swerling / SNR miss — no measurement this frame
+    # 1) Swerling / SNR miss: no measurement this frame
     if rng.random() < RADAR_DETECTION_MISS_PROB:
         return None
     r_true, az_true = utils.cartesian_to_polar(
         true_x, true_y, RADAR_ORIGIN_X_M, RADAR_ORIGIN_Y_M
     )
-    # 2) False alarm — treat as a spurious (r, az) near the *truth* in Cartesian space, then
+    # 2) False alarm: treat as a spurious (r, az) near the *truth* in Cartesian space, then
     # convert back to polar; keeps targets "nearby" as requested
     is_fa = rng.random() < RADAR_FALSE_ALARM_PROB
     if is_fa:
@@ -97,7 +97,7 @@ def radar_measurement_from_true_position(
         return PolarRadarReturn(
             range_m=float(r_noisy), azimuth_rad=float(az_noisy), is_from_true_target=False, is_false_alarm=True
         )
-    # 3) Standard hit — add independent Gaussian in sensors-native polar
+    # 3) Standard hit: add independent Gaussian in sensors-native polar
     n_r = rng.normal(0.0, RADAR_RANGE_NOISE_STD_M)
     n_az = rng.normal(0.0, RADAR_AZIMUTH_NOISE_STD_RAD)
     r_noisy = max(1.0, r_true + n_r)  # avoid negative range at the origin

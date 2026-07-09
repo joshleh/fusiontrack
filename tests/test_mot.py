@@ -52,16 +52,16 @@ def test_measurement_births_tentative_track() -> None:
 def test_two_hits_confirm_track() -> None:
     """
     HITS_TO_CONFIRM=2 consecutive measurements at the same position must confirm
-    the track — the first hit births it (tentative), the second confirms it.
+    the track: the first hit births it (tentative), the second confirms it.
     """
     mgr = _fresh_manager(hits_to_confirm=2)
     z = _polar(200.0, 100.0)
-    # Frame 1 — birth
+    # Frame 1: birth
     mgr.predict_all()
     mgr.update([z])
     assert mgr.tracks[0].state == TrackState.TENTATIVE
 
-    # Frame 2 — confirm
+    # Frame 2: confirm
     mgr.predict_all()
     mgr.update([z])
     assert mgr.tracks[0].state == TrackState.CONFIRMED
@@ -91,7 +91,7 @@ def test_max_misses_deletes_confirmed_track() -> None:
 def test_tentative_track_pruned_if_no_second_hit() -> None:
     """
     A tentative track that never gets a second measurement must be pruned after
-    MAX_TENTATIVE_AGE frames — it was a clutter false alarm, not a target.
+    MAX_TENTATIVE_AGE frames; it was a clutter false alarm, not a target.
     """
     mgr = _fresh_manager(hits_to_confirm=2)
     mgr.predict_all()
@@ -187,7 +187,7 @@ def test_mot_demo_end_to_end_regression() -> None:
     res = run_mot_demo(rng=np.random.default_rng(42), n_frames=100)
     metrics = res["metrics"]
 
-    # Zero ID switches — GNN must not swap track identities through the crossing
+    # Zero ID switches: GNN must not swap track identities through the crossing
     assert metrics["id_switches"] == 0, (
         f"Expected 0 ID switches, got {metrics['id_switches']}"
     )

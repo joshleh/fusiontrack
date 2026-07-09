@@ -35,13 +35,13 @@ def make_crossing_scenario(n_frames: int = 100) -> List[NDArray[np.float64]]:
     """
     Three targets on straight CV paths that converge near the scene centre around frame 50.
 
-    Target 1 (→): (50, 225) at 4.0 m/s east — reaches ~(245, 225) at k=49.
-    Target 2 (↗): (225, 50) at (0.4, 3.4) m/s — reaches ~(245, 216) at k=49.
-    Target 3 (←): (450, 290) at (-4.0, -0.5) m/s — reaches ~(254, 265) at k=49.
+    Target 1 (→): (50, 225) at 4.0 m/s east, reaching ~(245, 225) at k=49.
+    Target 2 (↗): (225, 50) at (0.4, 3.4) m/s, reaching ~(245, 216) at k=49.
+    Target 3 (←): (450, 290) at (-4.0, -0.5) m/s, reaching ~(254, 265) at k=49.
 
     Targets 1 & 2 pass within ~9 m of each other at frame 49, which is the hardest
     data-association moment: Mahalanobis gating and Hungarian assignment are stressed.
-    Target 3 is ~40 m away from the pair at that moment — easily distinguishable.
+    Target 3 is ~40 m away from the pair at that moment, easily distinguishable.
 
     # INTERVIEW CRITICAL: at the crossing, two tracks are inside each other's chi-square
     # gate; the Hungarian algorithm makes the globally optimal assignment. JPDA or MHT
@@ -62,7 +62,7 @@ def generate_multi_target_measurements(
 ) -> List[List[radar_sim.PolarRadarReturn]]:
     """
     For every frame: draw radar returns from each target (may miss), add Poisson
-    clutter, then **shuffle** — the tracker receives no ordering information.
+    clutter, then **shuffle**: the tracker receives no ordering information.
 
     Parameters
     ----------
@@ -88,7 +88,7 @@ def generate_multi_target_measurements(
             if ret is not None:
                 frame_meas.append(ret)
 
-        # Poisson clutter — random positions in the surveillance volume
+        # Poisson clutter: random positions in the surveillance volume
         n_clutter = int(rng.poisson(clutter_rate))
         for _ in range(n_clutter):
             r_c = float(rng.uniform(10.0, 450.0))

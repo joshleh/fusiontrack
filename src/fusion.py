@@ -3,10 +3,10 @@ End-to-end single-target fusion: synthetic trajectory, parallel simulators, four
 
 Four parallel trackers are compared:
 
-* **KF fused** — linear KF, radar converted to Cartesian before update (old path)
-* **EKF fused** — ExtendedKalmanFilter, radar in native (r, θ) with analytic Jacobian
-* **Camera-only** — linear KF, camera measurements only
-* **Radar-only** — linear KF, Cartesian radar only (for degraded baseline)
+* **KF fused**  -  linear KF, radar converted to Cartesian before update (old path)
+* **EKF fused**  -  ExtendedKalmanFilter, radar in native (r, θ) with analytic Jacobian
+* **Camera-only**  -  linear KF, camera measurements only
+* **Radar-only**  -  linear KF, Cartesian radar only (for degraded baseline)
 
 The EKF vs KF comparison is the primary takeaway for the portfolio.
 """
@@ -24,33 +24,33 @@ from numpy.typing import NDArray
 from . import camera_sim, ekf, radar_sim, utils
 
 # ---------------------------------------------------------------------------
-# Session / script constants — all tunable simulation knobs live here
+# Session / script constants: all tunable simulation knobs live here
 # ---------------------------------------------------------------------------
 # Length of the synthetic run (frames); matches portfolio brief.
 TRAJECTORY_NUM_FRAMES: Final[int] = 100
-# Time between frames (seconds) — filter, radar, and camera share the same clock.
+# Time between frames (seconds): filter, radar, and camera share the same clock.
 FUSION_FRAME_DT_S: Final[float] = ekf.DEFAULT_DT_S
-# World box for the path (meters) — UAS in a 500m local tangent patch.
+# World box for the path (meters): UAS in a 500m local tangent patch.
 TRAJECTORY_WORLD_MIN_M: Final[float] = 0.0
 TRAJECTORY_WORLD_MAX_M: Final[float] = 500.0
 # Path parameter sweep for the smooth curve: controls how many "lobes" appear.
 TRAJECTORY_SIN_SCALE_RAD: Final[float] = 0.12
 # Initial velocity error (m/s) on top of a finite-difference trim from the first
-# two ground-truth samples — *cold-start* is intentionally imperfect so early frames
+# two ground-truth samples; *cold-start* is intentionally imperfect so early frames
 # show real convergence; values like 0.1 m/s were too oracle-like.
 INIT_VELOCITY_ERROR_STD: Final[float] = 2.0
 # Random seed for a repeatable demo; change for new Monte-Carlo runs.
 DEMO_RNG_SEED: Final[int] = 7
 # Frame indices at which to draw error ellipses for clarity
 ELLIPSE_FRAME_STEP: Final[int] = 10
-# Shaded occlusion window for the RMSE panel (inclusive) — same as camera_sim
+# Shaded occlusion window for the RMSE panel (inclusive): same as camera_sim
 PLOT_OCCLUSION_START: Final[int] = camera_sim.CAMERA_OCCLUSION_START_FRAME
 PLOT_OCCLUSION_END: Final[int] = camera_sim.CAMERA_OCCLUSION_END_FRAME
 # Per-axis world variance for radar (m²). 2.0 m 1-σ → 4.0 m², **tighter** than
-# camera: ~4 m 1-σ (from 8 px × 0.5 m/px) → 16 m² — so fusion can lean on range/azimuth
+# camera: ~4 m 1-σ (from 8 px × 0.5 m/px) → 16 m²; so fusion can lean on range/azimuth
 # when the camera is noisy or missing. (Real R is state-dependent after polar; this is a knob.)
 # INTERVIEW: if camera and radar R were numerically equal, you would not have a *sensor*
-# story — you would be testing geometry only.
+# story; you would be testing geometry only.
 RADAR_MEASUREMENT_VAR_M2: Final[float] = 2.0**2
 # Camera: map pixel σ to a full 2x2 R via utils (8 px 1-σ in each direction)
 
@@ -61,7 +61,7 @@ def _make_smooth_curved_trajectory(n_frames: int) -> NDArray[np.float64]:
     track is *not* a random walk, matching the brief for a *curved* UAV line.
 
     The function uses a sine phase along the x baseline plus a forward drift
-    in y so the whole path stays in-bounds. This is *not* a Dubins model — it
+    in y so the whole path stays in-bounds. This is *not* a Dubins model; it
     is a controllable, interview-friendly S-curve.
     """
     t = np.arange(n_frames, dtype=np.float64)
@@ -100,10 +100,10 @@ def run_fusion_demo(
 
     The routine wires up four trackers:
 
-    * ``fused`` — :class:`ekf.KFTracker`, camera + Cartesian radar (baseline)
-    * ``ekf_fused`` — :class:`ekf.EKFTracker`, camera + polar radar (the new path)
-    * ``cam_kf`` — :class:`ekf.KFTracker`, camera-only baseline
-    * ``rad_kf`` — :class:`ekf.KFTracker`, Cartesian radar-only baseline
+    * ``fused``: :class:`ekf.KFTracker`, camera + Cartesian radar (baseline)
+    * ``ekf_fused``: :class:`ekf.EKFTracker`, camera + polar radar (the new path)
+    * ``cam_kf``: :class:`ekf.KFTracker`, camera-only baseline
+    * ``rad_kf``: :class:`ekf.KFTracker`, Cartesian radar-only baseline
 
     The returned structure is a plain *serializable-friendly* map with NumPy
     arrays so notebooks can introspect the same data as the CLI demo.
@@ -122,7 +122,7 @@ def run_fusion_demo(
         camera_sim.CAMERA_CENTER_NOISE_STD_PX,
     )
     r_radar = np.eye(2, dtype=np.float64) * RADAR_MEASUREMENT_VAR_M2
-    # EKF polar R: diag([σ_r², σ_θ²]) — built from physical constants, no tuning needed
+    # EKF polar R: diag([σ_r², σ_θ²]); built from physical constants, no tuning needed
     r_radar_polar = np.diag(
         [ekf.RADAR_RANGE_NOISE_STD_EKF_M ** 2, ekf.RADAR_AZIMUTH_NOISE_STD_EKF_RAD ** 2]
     ).astype(np.float64)
@@ -132,7 +132,7 @@ def run_fusion_demo(
     fused = ekf.KFTracker(
         x0, dt=FUSION_FRAME_DT_S, r_camera=r_cam, r_radar=r_radar
     )
-    # EKF with polar radar (new — the main upgrade)
+    # EKF with polar radar (the main upgrade)
     ekf_fused = ekf.EKFTracker(
         x0, dt=FUSION_FRAME_DT_S, r_camera=r_cam, r_radar_polar=r_radar_polar
     )
@@ -152,7 +152,7 @@ def run_fusion_demo(
     ekf_trace_p = np.zeros(n, dtype=np.float64)
     cam_meas_world = np.full((n, 2), np.nan, dtype=np.float64)
     rad_meas_world = np.full((n, 2), np.nan, dtype=np.float64)
-    # Ellipses stored during the loop — one set per tracker, no second RNG pass
+    # Ellipses stored during the loop: one set per tracker, no second RNG pass
     kf_ellipses: List[Tuple[int, ekf.UncertaintyEllipse2D]] = []
     ekf_ellipses: List[Tuple[int, ekf.UncertaintyEllipse2D]] = []
 
@@ -185,7 +185,7 @@ def run_fusion_demo(
         # --- Linear KF fused update (Cartesian radar) ---
         # INTERVIEW CRITICAL: two sequential KF updates at one time step is not the same
         # as a single joint update with stacked H/R unless measurements are conditionally
-        # independent given the state — acceptable for a tutorial; production uses gating.
+        # independent given the state; acceptable for a tutorial; production uses gating.
         if z_cam is not None:
             fused.update_camera(z_cam, r_override=r_cam)
         if z_rad_cart is not None:
@@ -215,11 +215,11 @@ def run_fusion_demo(
 
     return {
         "ground_truth": true_xy,
-        # KF fused (Cartesian radar) — kept for comparison
+        # KF fused (Cartesian radar): kept for comparison
         "fused": kf_fused_path,
         "cov_trace": kf_trace_p,
         "uncertainty_ellipses": kf_ellipses,
-        # EKF fused (polar radar) — new
+        # EKF fused (polar radar): new
         "ekf_fused": ekf_fused_path,
         "ekf_cov_trace": ekf_trace_p,
         "ekf_uncertainty_ellipses": ekf_ellipses,
@@ -304,7 +304,7 @@ def plot_results(
     ax.legend(fontsize=8)
     ax.grid(True, alpha=0.3)
 
-    # Error panel — per-frame L2, all four tracks
+    # Error panel: per-frame L2, all four tracks
     err_kf = _per_frame_l2(true_xy, fused)
     err_c = _per_frame_l2(true_xy, c_only)
     err_r = _per_frame_l2(true_xy, r_only)
@@ -325,7 +325,7 @@ def plot_results(
     )
     ax2.set_xlabel("Frame index k")
     ax2.set_ylabel("Position error (m)")
-    ax2.set_title("Per-frame L2 error — EKF vs. KF")
+    ax2.set_title("Per-frame L2 error: EKF vs. KF")
     ax2.grid(True, alpha=0.3)
     ax2.legend(fontsize=8)
     if show and "agg" not in str(plt.get_backend()).lower():

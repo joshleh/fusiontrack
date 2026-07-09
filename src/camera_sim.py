@@ -20,14 +20,14 @@ from . import utils
 # ---------------------------------------------------------------------------
 # Pixel noise, miss, and occlusion schedule
 # ---------------------------------------------------------------------------
-# 1-sigma error on each pixel axis (independent Gaussians) — spec: ~8 px
+# 1-sigma error on each pixel axis (independent Gaussians); spec: ~8 px
 CAMERA_CENTER_NOISE_STD_PX: Final[float] = 8.0
-# P(no frame detection) when the target is visible — model label miss, score threshold
+# P(no frame detection) when the target is visible: model label miss, score threshold
 CAMERA_DETECTION_MISS_PROB: Final[float] = 0.10
-# Inclusive frame index range [start, end] with *no* camera returns — simulates buildings/self-occlusion
+# Inclusive frame index range [start, end] with *no* camera returns: simulates buildings/self-occlusion
 CAMERA_OCCLUSION_START_FRAME: Final[int] = 40
 CAMERA_OCCLUSION_END_FRAME: Final[int] = 60
-# Synthetic full box size (pixels) — only used for a complete box record; center is what the KF consumes
+# Synthetic full box size (pixels): only used for a complete box record; center is what the KF consumes
 DEFAULT_BOX_WIDTH_PX: Final[float] = 48.0
 DEFAULT_BOX_HEIGHT_PX: Final[float] = 36.0
 
@@ -57,12 +57,12 @@ def camera_measurement_from_truth(
     Draw a noisy pixel-space box from true world ``(x, y)``.
 
     Physical effects layered in order:
-    1) **Occlusion window** — between :data:`CAMERA_OCCLUSION_START_FRAME` and
+    1) **Occlusion window**: between :data:`CAMERA_OCCLUSION_START_FRAME` and
        :data:`CAMERA_OCCLUSION_END_FRAME`, we return ``None`` every frame so the
        fusion loop must use radar and coast.
-    2) **Stochastic miss** — independent of occlusion, a Bernoulli miss models
+    2) **Stochastic miss**: independent of occlusion, a Bernoulli miss models
        missed detections in clear view (thresholding, small target).
-    3) **Gaussian center jitter** — models calibration error, discretization, and
+    3) **Gaussian center jitter**: models calibration error, discretization, and
        detector localisation noise. Applied in pixel space, then the inverse
        mapping in ``utils`` lifts to world coordinates.
 

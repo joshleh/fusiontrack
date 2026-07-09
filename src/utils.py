@@ -17,7 +17,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 # ---------------------------------------------------------------------------
-# Geometric constants — orthographic "map" model (meters in world, pixels on screen)
+# Geometric constants: orthographic "map" model (meters in world, pixels on screen)
 # ---------------------------------------------------------------------------
 # One pixel width/height in world space (meters). Scaling ground truth to pixels.
 METERS_PER_PIXEL: Final[float] = 0.5
@@ -78,7 +78,7 @@ def world_meters_to_pixel(u_m: float, v_m: float) -> Tuple[float, float]:
     The mapping is linear with ``METERS_PER_PIXEL``, placing the world origin
     at ``(PRINCIPAL_U_PX, PRINCIPAL_V_PX)``. Increasing ``u`` is +x, increasing
     ``v`` is +y in this notebook-friendly convention (v down on screen, y
-    down in the figures — consistent with the fusion plots).
+    down in the figures, consistent with the fusion plots).
     """
     u = PRINCIPAL_U_PX + u_m / METERS_PER_PIXEL
     v = PRINCIPAL_V_PX + v_m / METERS_PER_PIXEL

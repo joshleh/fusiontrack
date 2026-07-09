@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FusionTrack — Multi-Sensor UAV Tracking</title>
+  <title>FusionTrack  -  Multi-Sensor UAV Tracking</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -239,7 +239,7 @@
   <p class="hero-sub">
     Radar sees distance and direction but generates false signals constantly.
     Camera sees shape but goes blind behind obstacles. This project builds the math
-    to combine both — keeping a lock on every drone in the airspace,
+    to combine both  -  keeping a lock on every drone in the airspace,
     even when they fly directly through each other's path.
   </p>
   <div class="btn-row">
@@ -285,17 +285,17 @@
     <div class="why-card">
       <span class="num">01</span>
       <h3>The problem: sensors lie</h3>
-      <p>Radar reports where something might be — but with noise, missed detections, and dozens of phantom signals (called <em>clutter</em>) every second. Camera gives a cleaner picture but goes dark the moment anything blocks its view. Neither sensor alone is reliable enough to stake a tracking decision on.</p>
+      <p>Radar reports where something might be  -  but with noise, missed detections, and dozens of phantom signals (called <em>clutter</em>) every second. Camera gives a cleaner picture but goes dark the moment anything blocks its view. Neither sensor alone is reliable enough to stake a tracking decision on.</p>
     </div>
     <div class="why-card">
       <span class="num">02</span>
       <h3>The solution: weighted combination</h3>
-      <p>Instead of trusting one sensor, the system maintains a <em>probability distribution</em> — a best guess of where each drone is, plus a measure of how confident that guess is. Every new sensor reading shifts the distribution. The less noisy the reading, the more it shifts things. This is the Kalman filter idea, dating to Apollo-era navigation.</p>
+      <p>Instead of trusting one sensor, the system maintains a <em>probability distribution</em>  -  a best guess of where each drone is, plus a measure of how confident that guess is. Every new sensor reading shifts the distribution. The less noisy the reading, the more it shifts things. This is the Kalman filter idea, dating to Apollo-era navigation.</p>
     </div>
     <div class="why-card">
       <span class="num">03</span>
       <h3>The hard part: crossing paths</h3>
-      <p>When two drones fly close together, the system receives signals from both but doesn't know which signal came from which drone. Assign them wrong once and both tracks are corrupted. FusionTrack uses an optimization algorithm (Hungarian method) to find the globally best assignment — not just the closest match — avoiding identity swaps entirely.</p>
+      <p>When two drones fly close together, the system receives signals from both but doesn't know which signal came from which drone. Assign them wrong once and both tracks are corrupted. FusionTrack uses an optimization algorithm (Hungarian method) to find the globally best assignment  -  not just the closest match  -  avoiding identity swaps entirely.</p>
     </div>
   </div>
 </section>
@@ -305,18 +305,18 @@
 <!-- ── Demo ── -->
 <section id="demo">
   <div class="section-title">Live Tracking Demo</div>
-  <p class="section-sub">Three drones, 100 timesteps, constant clutter. Watch the system track each drone from birth to crossing and back out — never losing identity.</p>
+  <p class="section-sub">Three drones, 100 timesteps, constant clutter. Watch the system track each drone from birth to crossing and back out  -  never losing identity.</p>
 
   <div class="demo-wrapper">
     <img src="mot_demo.gif" alt="Multi-object tracking animation showing 3 crossing targets with uncertainty ellipses, fading trails, and clutter measurements">
     <div class="demo-legend">
-      <span class="legend-item"><span class="legend-dot" style="background:#f00;border-radius:2px;width:12px;height:3px;"></span> Red × — raw radar signal (could be real or clutter)</span>
-      <span class="legend-item"><span style="font-size:0.85rem;">▲</span> &nbsp;Filled triangle — confirmed drone track</span>
-      <span class="legend-item"><span style="font-size:0.85rem;">○</span> &nbsp;Hollow circle — newly detected, not yet confirmed</span>
-      <span class="legend-item"><span style="border:1.5px solid #aaa;border-radius:50%;width:14px;height:9px;display:inline-block;"></span> &nbsp;Ellipse — 95% confidence region for position</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#f00;border-radius:2px;width:12px;height:3px;"></span> Red ×  -  raw radar signal (could be real or clutter)</span>
+      <span class="legend-item"><span style="font-size:0.85rem;">▲</span> &nbsp;Filled triangle  -  confirmed drone track</span>
+      <span class="legend-item"><span style="font-size:0.85rem;">○</span> &nbsp;Hollow circle  -  newly detected, not yet confirmed</span>
+      <span class="legend-item"><span style="border:1.5px solid #aaa;border-radius:50%;width:14px;height:9px;display:inline-block;"></span> &nbsp;Ellipse  -  95% confidence region for position</span>
     </div>
     <div class="demo-caption">
-      <strong>What to watch at the crossing (roughly halfway through):</strong> Two drones fly within ~9 meters of each other — so close that each is inside the other's expected detection zone. The system must decide, every frame, which radar blip belongs to which drone. It never gets it wrong. The fading colored trails show where each drone has been; the ellipses shrink as the system gets more confident in each position.
+      <strong>What to watch at the crossing (roughly halfway through):</strong> Two drones fly within ~9 meters of each other  -  so close that each is inside the other's expected detection zone. The system must decide, every frame, which radar blip belongs to which drone. It never gets it wrong. The fading colored trails show where each drone has been; the ellipses shrink as the system gets more confident in each position.
     </div>
   </div>
 </section>
@@ -326,7 +326,7 @@
 <!-- ── Architecture ── -->
 <section id="architecture">
   <div class="section-title">How it works</div>
-  <p class="section-sub">Each timestep, the tracker runs five steps — from prediction through lifecycle management.</p>
+  <p class="section-sub">Each timestep, the tracker runs five steps  -  from prediction through lifecycle management.</p>
 
   <div class="plain-box">
     <div class="plain-box-label">Plain English</div>
@@ -370,32 +370,32 @@
     <div class="card">
       <span class="card-icon">📡</span>
       <h3>Fusing radar and camera</h3>
-      <p>Radar reports distance and angle from the sensor. Camera reports pixel coordinates. These are measured in completely different units, with different noise characteristics. The filter converts both into a single best-estimate position — weighting each sensor by how trustworthy it currently is.</p>
+      <p>Radar reports distance and angle from the sensor. Camera reports pixel coordinates. These are measured in completely different units, with different noise characteristics. The filter converts both into a single best-estimate position  -  weighting each sensor by how trustworthy it currently is.</p>
       <p class="tech-note">Technical: native polar measurement model h(x) = [√(x²+y²), atan2(y,x)] with analytic 2×4 Jacobian. Angle-normalised innovation prevents ±π wraparound. Camera uses a linear H after pixel→world scaling.</p>
     </div>
     <div class="card">
       <span class="card-icon">🎯</span>
       <h3>Filtering out false alarms</h3>
-      <p>Radar generates phantom signals constantly — birds, reflections, electrical noise. Before any matching happens, each incoming signal is tested: is it close enough to a known drone's predicted position, given how uncertain that prediction is? Signals that fail this test are discarded before they can corrupt any tracks.</p>
+      <p>Radar generates phantom signals constantly  -  birds, reflections, electrical noise. Before any matching happens, each incoming signal is tested: is it close enough to a known drone's predicted position, given how uncertain that prediction is? Signals that fail this test are discarded before they can corrupt any tracks.</p>
       <p class="tech-note">Technical: Mahalanobis distance² in polar measurement space tested against χ²(2 DOF, 99%) gate before Hungarian assignment. Infeasible pairs receive sentinel cost 10⁹.</p>
     </div>
     <div class="card">
       <span class="card-icon">🔀</span>
       <h3>Solving the assignment problem</h3>
-      <p>When multiple drones are visible simultaneously, each sensor signal must be claimed by exactly one drone. A naïve approach — assign each signal to its nearest drone in sequence — can cascade errors when targets are close. Instead, the system finds the globally optimal assignment: minimize the total cost across all pairings at once.</p>
+      <p>When multiple drones are visible simultaneously, each sensor signal must be claimed by exactly one drone. A naïve approach  -  assign each signal to its nearest drone in sequence  -  can cascade errors when targets are close. Instead, the system finds the globally optimal assignment: minimize the total cost across all pairings at once.</p>
       <p class="tech-note">Technical: scipy.optimize.linear_sum_assignment (Jonker-Volgenant, O(n³)). Order-independent global optimum vs. greedy nearest-neighbour.</p>
     </div>
     <div class="card">
       <span class="card-icon">🛤️</span>
       <h3>Managing track confidence</h3>
-      <p>A single radar blip shouldn't be enough to declare a drone exists — it's probably clutter. A drone that stops producing signals for several frames probably left the area. The tracker requires two consecutive detections before confirming a track, and deletes it after three missed frames. This keeps the track list clean without human supervision.</p>
+      <p>A single radar blip shouldn't be enough to declare a drone exists  -  it's probably clutter. A drone that stops producing signals for several frames probably left the area. The tracker requires two consecutive detections before confirming a track, and deletes it after three missed frames. This keeps the track list clean without human supervision.</p>
       <p class="tech-note">Technical: TENTATIVE → CONFIRMED (hits ≥ 2) → DELETED (misses ≥ 3). Stale tentative tracks pruned after 3 frames.</p>
     </div>
   </div>
 
   <br>
   <div class="section-title" style="font-size:1.1rem; margin-bottom:0.5rem;">Two filter variants</div>
-  <p style="color:var(--muted); font-size:0.88rem; margin-bottom:1rem;">The simpler version converts radar readings to x/y coordinates first, then filters. The advanced version works directly in radar's native units — more accurate at long range where the conversion introduces distortion.</p>
+  <p style="color:var(--muted); font-size:0.88rem; margin-bottom:1rem;">The simpler version converts radar readings to x/y coordinates first, then filters. The advanced version works directly in radar's native units  -  more accurate at long range where the conversion introduces distortion.</p>
   <table>
     <thead>
       <tr>
@@ -407,16 +407,16 @@
     </thead>
     <tbody>
       <tr>
-        <td><code>KFTracker</code> — linear</td>
+        <td><code>KFTracker</code>  -  linear</td>
         <td>Convert distance/angle → x/y first, then filter</td>
         <td>Fixed error budget <span class="badge badge-blue">approx</span></td>
         <td>Short range, quick prototype</td>
       </tr>
       <tr>
-        <td><code>EKFTracker</code> — extended</td>
+        <td><code>EKFTracker</code>  -  extended</td>
         <td>Filter directly in distance/angle space; no conversion</td>
         <td>Physically derived error model <span class="badge badge-green">exact</span></td>
-        <td>Long range — conversion error grows with distance</td>
+        <td>Long range  -  conversion error grows with distance</td>
       </tr>
     </tbody>
   </table>
@@ -431,7 +431,7 @@
 
   <div class="plain-box" style="margin-bottom:1.5rem;">
     <div class="plain-box-label">Bottom line</div>
-    <p>When two drones flew within 9 meters of each other — so close each was inside the other's detection zone — the system correctly tracked both without ever swapping their identities. Position estimates stayed within <strong>2.57 meters</strong> of true position on average, which matches what you'd expect given the radar's physical noise level at that range.</p>
+    <p>When two drones flew within 9 meters of each other  -  so close each was inside the other's detection zone  -  the system correctly tracked both without ever swapping their identities. Position estimates stayed within <strong>2.57 meters</strong> of true position on average, which matches what you'd expect given the radar's physical noise level at that range.</p>
   </div>
 
   <div class="results-grid">
@@ -488,7 +488,7 @@ pip install -r requirements.txt
 <span class="cm"># Single-drone EKF fusion demo (plots trajectory + error over time)</span>
 <span class="kw">python</span> -m src.fusion
 
-<span class="cm"># Multi-drone tracker — prints metrics, shows plot, saves mot_demo.gif</span>
+<span class="cm"># Multi-drone tracker  -  prints metrics, shows plot, saves mot_demo.gif</span>
 <span class="kw">python</span> -m src.mot
 
 <span class="cm"># 25 automated tests</span>

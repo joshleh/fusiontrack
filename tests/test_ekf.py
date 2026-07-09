@@ -21,7 +21,7 @@ def test_predict_advances_state_under_constant_velocity_model() -> None:
     """
     The filter mean must follow the discrete constant-velocity transition F: for ``dt=1``,
     ``x <- x + vx``, ``y <- y + vy`` when only ``predict`` is applied (mean path does not
-    use Q — Q adds covariance, not mean bias, in the linear KF).
+    use Q; Q adds covariance, not mean bias, in the linear KF).
     """
     x0 = np.array([0.0, 0.0, 1.0, 0.5], dtype=np.float64)
     tr = ekf.KFTracker(x0, dt=1.0)
@@ -50,7 +50,7 @@ def test_update_camera_moves_toward_measurement() -> None:
 def test_update_reduces_total_covariance_trace_after_high_initial_uncertainty() -> None:
     """
     When P starts huge relative to R, a position update *typically* shrinks the total
-    trace — a healthy regression check that the KF is actually fusing, not no-op.
+    trace, a healthy regression check that the KF is actually fusing, not no-op.
     (Trace is not a cost in general Kalman theory; this is a sufficient sanity test.)
     """
     x0 = np.array([0.0, 0.0, 0.0, 0.0], dtype=np.float64)
@@ -65,7 +65,7 @@ def test_update_reduces_total_covariance_trace_after_high_initial_uncertainty() 
 def test_repeated_update_with_same_z_monotonic_move_toward_z() -> None:
     """
     Idempotent re-measurements should continue to **reduce** the gap to a fixed
-    (consistent) report — here we check the second nudge is smaller in L2 to ``z``.
+    (consistent) report; here we check the second nudge is smaller in L2 to ``z``.
     """
     tr = ekf.KFTracker(np.array([0.0, 0.0, 0.0, 0.0], dtype=np.float64))
     z = np.array([3.0, 4.0], dtype=np.float64)
@@ -130,7 +130,7 @@ def test_ekf_tracker_radar_polar_moves_state_toward_truth() -> None:
     We start at an off-origin position that is still far from the truth.
     """
     import math
-    # State at (30, 10) — off-origin, well away from truth at (100, 50)
+    # State at (30, 10): off-origin, well away from truth at (100, 50)
     x0 = np.array([30.0, 10.0, 0.0, 0.0], dtype=np.float64)
     tr = ekf.EKFTracker(x0, dt=1.0)
     tr._kf.P = 1e4 * np.eye(4, dtype=np.float64)  # type: ignore[attr-defined]
@@ -165,7 +165,7 @@ def test_ekf_tracker_radar_polar_angle_wrapping() -> None:
 def test_ekf_tracker_covariance_reduces_after_polar_update() -> None:
     """
     After a radar polar update with high initial P, the total covariance trace
-    must shrink — same regression check as for KFTracker.
+    must shrink; same regression check as for KFTracker.
     """
     x0 = np.array([100.0, 80.0, 0.0, 0.0], dtype=np.float64)
     tr = ekf.EKFTracker(x0, dt=1.0)

@@ -1,30 +1,30 @@
 # EKF + MOT: matrix cheat-sheet and interview notes
 
-Reference for every design decision in FusionTrack. Read alongside the source code — each section maps to a `# INTERVIEW CRITICAL` comment.
+Reference for every design decision in FusionTrack. Read alongside the source code; each section maps to a `# INTERVIEW CRITICAL` comment.
 
 ---
 
-## 1. State vector — why four numbers?
+## 1. State vector  -  why four numbers?
 
 $$x = [x,\; y,\; v_x,\; v_y]^T \in \mathbb{R}^4$$
 
-Tracking only $[x, y]$ forces velocity estimation by finite-differencing consecutive positions, which amplifies measurement noise and lags one frame behind. Carrying velocity in the state lets the prediction step propagate the estimate forward with a *consistent* joint distribution over position and velocity — so the predicted position already encodes the current speed. This also makes the covariance meaningful: off-diagonal blocks $P_{xv}$ capture the correlation between position uncertainty and velocity uncertainty, which a two-element state cannot represent at all.
+Tracking only $[x, y]$ forces velocity estimation by finite-differencing consecutive positions, which amplifies measurement noise and lags one frame behind. Carrying velocity in the state lets the prediction step propagate the estimate forward with a *consistent* joint distribution over position and velocity, so the predicted position already encodes the current speed. This also makes the covariance meaningful: off-diagonal blocks $P_{xv}$ capture the correlation between position uncertainty and velocity uncertainty, which a two-element state cannot represent at all.
 
 ---
 
-## 2. Motion model — matrix $F$ (constant-velocity)
+## 2. Motion model  -  matrix $F$ (constant-velocity)
 
 For time step $dt$ the discrete constant-velocity $F$ is:
 
 $$F = \begin{bmatrix}1 & 0 & dt & 0 \\ 0 & 1 & 0 & dt \\ 0 & 0 & 1 & 0 \\ 0 & 0 & 0 & 1\end{bmatrix}$$
 
-**What it assumes:** zero acceleration between frames — "the target keeps flying straight." For a UAV in level cruise this is excellent. For a banking turn or climb, the true position diverges from the CV prediction *quadratically* in $dt$, and the filter compensates through $Q$ (see §3).
+**What it assumes:** zero acceleration between frames: "the target keeps flying straight." For a UAV in level cruise this is excellent. For a banking turn or climb, the true position diverges from the CV prediction *quadratically* in $dt$, and the filter compensates through $Q$ (see §3).
 
 **What it misses:** coordinated turns, wind gusts, speed changes. A constant-turn model (CT) or interacting multiple models (IMM) are the next rung up when maneuver statistics are known.
 
 ---
 
-## 3. Process noise $Q$ — the maneuver budget
+## 3. Process noise $Q$  -  the maneuver budget
 
 The standard "discretized white acceleration" model (Bar-Shalom §6.3):
 
@@ -38,13 +38,13 @@ $\sigma_a$ is the root-mean-square acceleration the CV model cannot predict (m/s
 
 ---
 
-## 4. Measurement matrix $H$ — position only
+## 4. Measurement matrix $H$  -  position only
 
 $$H = \begin{bmatrix}1 & 0 & 0 & 0 \\ 0 & 1 & 0 & 0\end{bmatrix}$$
 
-Both sensors deliver only position $(x, y)$ in world meters — neither gives a direct velocity measurement. So $H$ is the same for both sensors on the linear KF path. The velocity is estimated indirectly through the temporal dynamics of consecutive position measurements and the cross-correlation terms in $P$.
+Both sensors deliver only position $(x, y)$ in world meters; neither gives a direct velocity measurement. So $H$ is the same for both sensors on the linear KF path. The velocity is estimated indirectly through the temporal dynamics of consecutive position measurements and the cross-correlation terms in $P$.
 
-A Doppler radar would add a third measurement row observing $\frac{\partial r}{\partial t} = \frac{x v_x + y v_y}{r}$ — nonlinear in state, requiring the full EKF Jacobian.
+A Doppler radar would add a third measurement row observing $\frac{\partial r}{\partial t} = \frac{x v_x + y v_y}{r}$, nonlinear in state, requiring the full EKF Jacobian.
 
 ---
 
@@ -74,7 +74,7 @@ $$\sigma_{\text{cross}} = r\,\sigma_\theta = 300 \times 0.00873 \approx 2.6\;\te
 
 ---
 
-## 7. Radar: native polar EKF (`EKFTracker`) — the correct path
+## 7. Radar: native polar EKF (`EKFTracker`)  -  the correct path
 
 **Forward model (nonlinear):**
 $$h(x) = \begin{bmatrix}\sqrt{x_0^2 + x_1^2} \\ \operatorname{atan2}(x_1, x_0)\end{bmatrix}$$
@@ -86,15 +86,15 @@ $$H_{\text{jac}} = \begin{bmatrix}\dfrac{x_0}{r} & \dfrac{x_1}{r} & 0 & 0 \\[6pt
 **Polar $R$** (physical units, no approximation):
 $$R_{\text{polar}} = \text{diag}[\sigma_r^2,\; \sigma_\theta^2] = \text{diag}[9.0,\; 7.6\times10^{-5}]$$
 
-The innovation covariance $S = H_{\text{jac}} P^- H_{\text{jac}}^T + R_{\text{polar}}$ is a 2×2 matrix in polar space that correctly captures the range-dependent anisotropy via the Jacobian — no free parameters, just physics.
+The innovation covariance $S = H_{\text{jac}} P^- H_{\text{jac}}^T + R_{\text{polar}}$ is a 2×2 matrix in polar space that correctly captures the range-dependent anisotropy via the Jacobian; no free parameters, just physics.
 
 **Why this is better:** the Cartesian approximation smears anisotropic polar noise into an isotropic world blob and requires tuning $R_{\text{cart}}$ by hand. The EKF $R_{\text{polar}}$ is derived directly from the sensor spec.
 
-**Linearization error:** the Jacobian is evaluated at $x^-$ (the predicted state), not the true state. The linearization error grows as the prediction step gets large or the trajectory curves sharply — exactly the regime where a UKF (unscented transform) is preferred.
+**Linearization error:** the Jacobian is evaluated at $x^-$ (the predicted state), not the true state. The linearization error grows as the prediction step gets large or the trajectory curves sharply, exactly the regime where a UKF (unscented transform) is preferred.
 
 ### Angle wrapping (mandatory)
 
-Innovation: $y = z - h(x^-)$ includes an azimuth difference. Without wrapping, a target at azimuth $+\pi - \epsilon$ measured at $-\pi + \epsilon$ produces $y_\theta \approx 2\pi$ — a Kalman gain-scaled position shift of ~600 m. The fix:
+Innovation: $y = z - h(x^-)$ includes an azimuth difference. Without wrapping, a target at azimuth $+\pi - \epsilon$ measured at $-\pi + \epsilon$ produces $y_\theta \approx 2\pi$, a Kalman gain-scaled position shift of ~600 m. The fix:
 
 ```python
 y[1] = (y[1] + π) % (2π) - π   # normalize to (-π, π]
@@ -104,7 +104,7 @@ y[1] = (y[1] + π) % (2π) - π   # normalize to (-π, π]
 
 ---
 
-## 8. Covariance $P$ — geometry and meaning
+## 8. Covariance $P$  -  geometry and meaning
 
 The $2\times2$ position block of $P$ after an update:
 
@@ -112,13 +112,13 @@ $$P_{xy} = \begin{bmatrix}\sigma_x^2 & \sigma_{xy} \\ \sigma_{xy} & \sigma_y^2\e
 
 Its eigenvectors point along the principal axes of the uncertainty ellipse; the eigenvalues give the squared semi-axes. The 95% ellipse has semi-axes $a_i = \sqrt{\lambda_i \cdot \chi^2_{2,0.95}}$ where $\chi^2_{2,0.95} = 5.991$.
 
-**tr(P$_{xy}$)** = $\sigma_x^2 + \sigma_y^2$ — a scalar "total spread" used in the fusion plots. It is *not* the area of the ellipse (area $= \pi a_1 a_2 = \pi \sqrt{\det P_{xy}} \cdot \chi^2$ scale). Two filters can have equal trace but very different ellipse shapes (one elongated vs. circular) — the full matrix matters.
+**tr(P$_{xy}$)** = $\sigma_x^2 + \sigma_y^2$, a scalar "total spread," used in the fusion plots. It is *not* the area of the ellipse (area $= \pi a_1 a_2 = \pi \sqrt{\det P_{xy}} \cdot \chi^2$ scale). Two filters can have equal trace but very different ellipse shapes (one elongated vs. circular); the full matrix matters.
 
-**NEES (Normalized Estimation Error Squared):** the proper consistency check. $\text{NEES} = (x - \hat x)^T P^{-1} (x - \hat x)$ should be chi-square distributed with $d$ DOF for a consistent filter. A NEES that trends upward means $P$ is *optimistic* (filter thinks it's better than it is). This repository does not compute NEES — it's the natural next diagnostic step.
+**NEES (Normalized Estimation Error Squared):** the proper consistency check. $\text{NEES} = (x - \hat x)^T P^{-1} (x - \hat x)$ should be chi-square distributed with $d$ DOF for a consistent filter. A NEES that trends upward means $P$ is *optimistic* (filter thinks it's better than it is). This repository does not compute NEES; it's the natural next diagnostic step.
 
 ---
 
-## 9. Innovation gating — chi-square filter
+## 9. Innovation gating  -  chi-square filter
 
 **Innovation:** $y = z - H x^-$  
 **Innovation covariance:** $S = H P^- H^T + R$  
@@ -136,7 +136,7 @@ Its eigenvectors point along the principal axes of the uncertainty ellipse; the 
 
 ## 10. Multi-object data association
 
-**ID switch (formal definition):** an ID switch occurs when the globally optimal track-to-GT assignment changes between two consecutive frames — i.e., the track that was closest to GT trajectory $i$ at frame $k$ is closest to a different GT trajectory $j \ne i$ at frame $k+1$.  Formally: $\text{IDSW} = \sum_k \mathbf{1}[\pi_k(\text{tid}) \ne \pi_{k-1}(\text{tid})]$ summed over all tracks and frames where both assignments exist.  A zero ID-switch count means no track ever "jumped" from one target to another.
+**ID switch (formal definition):** an ID switch occurs when the globally optimal track-to-GT assignment changes between two consecutive frames, i.e., the track that was closest to GT trajectory $i$ at frame $k$ is closest to a different GT trajectory $j \ne i$ at frame $k+1$.  Formally: $\text{IDSW} = \sum_k \mathbf{1}[\pi_k(\text{tid}) \ne \pi_{k-1}(\text{tid})]$ summed over all tracks and frames where both assignments exist.  A zero ID-switch count means no track ever "jumped" from one target to another.
 
 ### GNN (this implementation)
 
@@ -144,7 +144,7 @@ Its eigenvectors point along the principal axes of the uncertainty ellipse; the 
 2. Hungarian algorithm: globally optimal one-to-one assignment, $O(n^3)$.
 3. Commit: each track updates on exactly one measurement (or none if all gated).
 
-**Failure mode:** at the crossing (frame 49), Tracks 1 and 2 are within each other's gate. GNN commits to the globally optimal assignment — correct if clutter is low. With even moderate clutter, a false alarm inside both tracks' gates can steal the optimal assignment and cause an ID switch.
+**Failure mode:** at the crossing (frame 49), Tracks 1 and 2 are within each other's gate. GNN commits to the globally optimal assignment, correct if clutter is low. With even moderate clutter, a false alarm inside both tracks' gates can steal the optimal assignment and cause an ID switch.
 
 ### JPDA (Joint Probabilistic Data Association)
 
@@ -164,20 +164,20 @@ Maintains a tree of all feasible measurement-to-track assignment histories, prun
 
 - **Write $F$ on a whiteboard:** for $dt=1$ s, $x \leftarrow x + v_x$, $y \leftarrow y + v_y$, velocities constant. Predict updates $P \leftarrow F P F^T + Q$.
 - **What does raising $\sigma_a$ do?** Inflates $Q$ → inflates $P^-$ → increases $K$ → more trust in fresh measurements vs. prior.
-- **Why is Cartesian radar $R$ a "lie"?** Cross-range error is $r\,\sigma_\theta$ — grows with range. A fixed isotropic $R$ is wrong at long range.
+- **Why is Cartesian radar $R$ a "lie"?** Cross-range error is $r\,\sigma_\theta$, which grows with range. A fixed isotropic $R$ is wrong at long range.
 - **When does angle wrapping bite you?** Any bearing innovation near ±180°. Same pattern in SLAM, GPS/compass, quaternion EKF.
 - **$\text{tr}(P)$ vs. NEES?** $\text{tr}(P)$ is the filter's own self-assessment. NEES uses ground truth to check whether $P$ is honest.
 - **Why GNN and not greedy?** Greedy (assign each measurement to its nearest track in sequence) is order-dependent and can create unnecessary ID switches. Hungarian is order-independent and minimizes total cost.
-- **Why GNN and not JPDA?** At low clutter density and well-separated targets, GNN is optimal in expectation. JPDA is necessary when targets are within each other's gate in significant clutter — you pay $O(2^n)$ to avoid ID switches.
+- **Why GNN and not JPDA?** At low clutter density and well-separated targets, GNN is optimal in expectation. JPDA is necessary when targets are within each other's gate in significant clutter; you pay $O(2^n)$ to avoid ID switches.
 - **What is a track's "tentative" phase for?** Clutter rejection. A false alarm fires at most one unmatched measurement; a real target fires consistently. Requiring 2+ hits before confirming eliminates most point clutter without multi-hypothesis tracking.
 
 ---
 
 ## 12. References
 
-- Bar-Shalom, Rong Li, Kirubarajan — *Estimation with Applications to Tracking and Navigation* (2001, Wiley-IEEE) — the definitive KF/EKF/IMM reference; chapters 4–6 cover everything above.
-- Thrun, Burgard, Fox — *Probabilistic Robotics* (2005, MIT Press) — chapter 3 for EKF derivation; chapter 6 for SLAM bearing-range update.
-- Blackman & Popoli — *Design and Analysis of Modern Tracking Systems* (1999, Artech House) — Hungarian, JPDA, MHT in tracking context.
-- Reid — "An Algorithm for Tracking Multiple Targets" (1979, IEEE TAC) — original MHT paper.
-- `scipy.optimize.linear_sum_assignment` — implements the Jonker-Volgenant algorithm ($O(n^3)$, faster than classical Hungarian in practice).
-- `scipy.stats.chi2.ppf(0.99, df=2)` → 9.210 — the gate threshold used here.
+- Bar-Shalom, Rong Li, Kirubarajan. *Estimation with Applications to Tracking and Navigation* (2001, Wiley-IEEE): the definitive KF/EKF/IMM reference; chapters 4-6 cover everything above.
+- Thrun, Burgard, Fox. *Probabilistic Robotics* (2005, MIT Press): chapter 3 for EKF derivation; chapter 6 for SLAM bearing-range update.
+- Blackman & Popoli. *Design and Analysis of Modern Tracking Systems* (1999, Artech House): Hungarian, JPDA, MHT in tracking context.
+- Reid. "An Algorithm for Tracking Multiple Targets" (1979, IEEE TAC): original MHT paper.
+- `scipy.optimize.linear_sum_assignment`: implements the Jonker-Volgenant algorithm ($O(n^3)$, faster than classical Hungarian in practice).
+- `scipy.stats.chi2.ppf(0.99, df=2)` → 9.210: the gate threshold used here.

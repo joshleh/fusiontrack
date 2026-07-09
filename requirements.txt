@@ -1,4 +1,4 @@
-# FusionTrack — core fusion numerics, plotting, and tests
+# FusionTrack  -  core fusion numerics, plotting, and tests
 numpy>=1.24
 scipy>=1.10
 filterpy>=1.4.5

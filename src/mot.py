@@ -2,11 +2,11 @@
 Multi-Object Tracker (MOT) for 2D radar targets.
 
 Architecture (Global Nearest-Neighbour):
-  1. Predict — propagate all tracks one time step.
-  2. Gate — compute Mahalanobis distance in polar measurement space.
-  3. Assign — Hungarian algorithm on the gated cost matrix.
-  4. Update — EKF update for matched (track, measurement) pairs.
-  5. Manage — birth from unmatched measurements, miss/death from unmatched tracks.
+  1. Predict: propagate all tracks one time step.
+  2. Gate: compute Mahalanobis distance in polar measurement space.
+  3. Assign: Hungarian algorithm on the gated cost matrix.
+  4. Update: EKF update for matched (track, measurement) pairs.
+  5. Manage: birth from unmatched measurements, miss/death from unmatched tracks.
 
 # INTERVIEW CRITICAL: GNN commits to one assignment hypothesis per frame.
 # JPDA computes soft assignment weights; MHT maintains a tree of hypotheses.
@@ -383,7 +383,7 @@ def run_mot_demo(
     manager = TrackerManager(dt=1.0)
 
     track_history: List[Dict[int, NDArray[np.float64]]] = []
-    # Confirmed status per frame — needed for state-based animation markers
+    # Confirmed status per frame: needed for state-based animation markers
     track_confirmed_history: List[Dict[int, bool]] = []
     # Ellipse snapshots for confirmed tracks every ELLIPSE_FRAME_STEP frames (static plot)
     ellipse_snapshots: List[Tuple[int, Dict[int, ekf.UncertaintyEllipse2D]]] = []
@@ -499,7 +499,7 @@ def plot_mot_results(
     ax.set_xlabel("World x (m)")
     ax.set_ylabel("World y (m)")
     ax.set_title(
-        "MOT — 3 crossing targets, GNN + Mahalanobis gate" + title_suffix
+        "MOT: 3 crossing targets, GNN + Mahalanobis gate" + title_suffix
     )
     ax.set_xlim(-20, mot_sim.WORLD_SIZE_M + 20)
     ax.set_ylim(-20, mot_sim.WORLD_SIZE_M + 20)
@@ -571,14 +571,14 @@ def make_mot_animation(res: Dict[str, Any], *, fps: int = 15) -> Any:
         ax_anim.set_ylim(-20, mot_sim.WORLD_SIZE_M + 20)
         ax_anim.set_aspect("equal")
         ax_anim.grid(True, alpha=0.25)
-        ax_anim.set_title(f"MOT demo — frame {k:03d} / {n_frames - 1}", fontsize=10)
+        ax_anim.set_title(f"MOT demo: frame {k:03d} / {n_frames - 1}", fontsize=10)
 
         # Ground truth up to frame k (faint dashed)
         for traj in trajectories:
             ax_anim.plot(traj[:k+1, 0], traj[:k+1, 1],
                          color="0.65", linewidth=1.1, linestyle="--", zorder=1)
 
-        # Raw measurements — x markers so clutter is distinguishable from tracks
+        # Raw measurements: x markers so clutter is distinguishable from tracks
         for pt in measurements_world[k]:
             ax_anim.scatter(pt[0], pt[1], color="crimson", marker="x", s=25,
                             alpha=0.75, linewidths=1.1, zorder=5)
@@ -616,12 +616,12 @@ def make_mot_animation(res: Dict[str, Any], *, fps: int = 15) -> Any:
 
             if n > 1:
                 split = max(1, n - _TRAIL_FULL)
-                # Older portion — dim
+                # Dim older portion
                 if split > 1:
                     ax_anim.plot(xy[:split, 0], xy[:split, 1],
                                  color=color, linewidth=1.0,
                                  alpha=_TRAIL_ALPHA_DIM, zorder=3)
-                # Recent portion — bright
+                # Bright recent portion
                 ax_anim.plot(xy[split-1:, 0], xy[split-1:, 1],
                              color=color, linewidth=2.0,
                              alpha=_TRAIL_ALPHA_BRIGHT, zorder=3)
