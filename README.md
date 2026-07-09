@@ -1,6 +1,6 @@
-# FusionTrack
+# FusionTrack: Multi-Sensor UAV Tracking with Kalman Filtering
 
-[![Site preview](site_preview.png)](https://joshleh.github.io/fusiontrack)
+[Site preview](https://joshleh.github.io/fusiontrack)
 
 Multi-sensor UAV tracking in 2D: single-object EKF fusion and **multi-object tracking** with Hungarian data association and Mahalanobis gating. Fuses **simulated radar** (range, azimuth, misses, false alarms) and **simulated camera** (noisy pixels, structured occlusion) through a linear KF and a true Extended Kalman Filter with native polar measurements.
 
