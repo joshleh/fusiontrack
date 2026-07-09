@@ -51,10 +51,11 @@ cmake -S cpp -B cpp/build && cmake --build cpp/build -j
 ctest --test-dir cpp/build --output-on-failure
 ```
 
-Pedagogical notebook (step-by-step prints, inline plots, cov-trace panel):
+Pedagogical notebooks (step-by-step prints, inline plots, cov-trace panel; plus a multi-object walkthrough):
 
 ```bash
-jupyter notebook notebooks/01_fusion_demo.ipynb
+jupyter notebook notebooks/01_fusion_demo.ipynb   # single-object EKF fusion
+jupyter notebook notebooks/02_mot_demo.ipynb      # multi-object tracker
 ```
 
 
@@ -64,15 +65,16 @@ jupyter notebook notebooks/01_fusion_demo.ipynb
 
 | Path                    | Role                                                                                                                                            |
 | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/ekf.py`            | `KFTracker` (linear KF) and `EKFTracker` (polar EKF): predict, update, covariance, ellipse, `compute_innovation_polar` for gating               |
+| `src/ekf.py`            | `KFTracker` (linear KF) and `EKFTracker` (polar EKF): predict, update, covariance, ellipse, `compute_innovation_polar` for gating, `compute_nees_2d` consistency |
 | `src/radar_sim.py`      | Polar returns with Gaussian noise, misses, false alarms                                                                                         |
 | `src/camera_sim.py`     | Pixel centers with noise, stochastic misses, occlusion window                                                                                   |
-| `src/fusion.py`         | Single-object demo: 4 parallel trackers (EKF fused / KF fused / camera-only / radar-only)                                                       |
+| `src/fusion.py`         | Single-object demo: 4 parallel trackers (EKF fused / KF fused / camera-only / radar-only) + NEES; `--backend python\|cpp`                        |
+| `src/cpp_backend.py`    | Adapter exposing the compiled C++ core (`fusiontrack_cpp`) behind the Python tracker API                                                        |
 | `src/mot.py`            | **Multi-Object Tracker**: `TrackerManager`, `Track`, `TrackState`; GNN + Mahalanobis gating; `compute_mot_metrics`; demo + plot + GIF animation |
 | `src/mot_sim.py`        | 3-target crossing scenario + Poisson clutter generation                                                                                         |
 | `src/utils.py`          | Pixel ↔ world scaling, polar ↔ Cartesian                                                                                                        |
-| `cpp/`                  | **C++17 tracking core**: fixed-size linalg, `KfTracker`/`EkfTracker`, Joseph-form update, ctest suite, optional pybind11 bindings                |
-| `docs/ekf_explainer.md` | Matrix cheat-sheet (placeholders for your interview notes)                                                                                      |
+| `cpp/`                  | **C++17 tracking core (single-target)**: fixed-size linalg, `KfTracker`/`EkfTracker`, Joseph-form update, `nees_2d`, ctest suite, optional pybind11 bindings |
+| `docs/ekf_explainer.md` | Matrix cheat-sheet and interview notes: state/motion/noise models, EKF Jacobian, gating, MOT, NEES                                              |
 
 
 
