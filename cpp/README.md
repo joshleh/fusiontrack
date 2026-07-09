@@ -6,6 +6,11 @@ Extended Kalman filter with native polar radar (`EkfTracker`). This is the layer
 that would run in a real-time deployment; the Python side stays for simulation,
 plotting, and the multi-object tracker.
 
+> **Scope:** this core is **single-target** (the KF/EKF filters). Multi-object
+> tracking — Global Nearest-Neighbour data association, Hungarian assignment,
+> Mahalanobis gating, and track lifecycle management — lives only in the Python
+> layer ([`src/mot.py`](../src/mot.py)) and is not ported here.
+
 ## Why a separate C++ implementation
 
 - **Deterministic, allocation-free.** Every matrix is fixed-size
