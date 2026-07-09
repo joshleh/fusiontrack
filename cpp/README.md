@@ -50,6 +50,17 @@ cmake --build build -j
 python tests/crossvalidate.py   # run from repo root: python cpp/tests/crossvalidate.py
 ```
 
+Once the module is built, the Python fusion demo can run its filters on this C++
+core via the [`src/cpp_backend.py`](../src/cpp_backend.py) adapter:
+
+```bash
+python -m src.fusion --backend cpp   # from the repo root
+```
+
+Both backends produce identical trajectories and covariances to machine
+precision; the C++ path is the deployment target, the Python path stays for
+simulation, plotting, and the multi-object tracker.
+
 ## Design notes
 
 The `# INTERVIEW CRITICAL` reasoning from the Python core carries over

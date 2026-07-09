@@ -91,9 +91,32 @@ def _initial_state_from_ground_truth(
     return np.array([p0[0], p0[1], v0[0], v0[1]], dtype=np.float64)
 
 
+def _select_tracker_classes(backend: str):
+    """Return the ``(KFClass, EKFClass)`` pair for the requested compute backend.
+
+    ``"python"`` uses the filterpy-based reference; ``"cpp"`` uses the compiled
+    C++ core via pybind11 (identical math, validated to machine precision). Both
+    classes share the same constructor keywords and method surface, so the demo
+    body below is backend-agnostic.
+    """
+    if backend == "cpp":
+        from . import cpp_backend
+
+        if not cpp_backend.is_available():
+            raise cpp_backend.CppBackendUnavailable(
+                "backend='cpp' requested but the C++ module is not built. "
+                "See src/cpp_backend.py for build instructions."
+            )
+        return cpp_backend.CppKFTracker, cpp_backend.CppEKFTracker
+    if backend == "python":
+        return ekf.KFTracker, ekf.EKFTracker
+    raise ValueError(f"Unknown backend {backend!r}; expected 'python' or 'cpp'.")
+
+
 def run_fusion_demo(
     *,
     rng: Optional[np.random.Generator] = None,
+    backend: str = "python",
 ) -> Dict[str, Any]:
     """
     Run the *full* single-target fusion experiment and return a dict for plotting/JSON.
@@ -105,10 +128,15 @@ def run_fusion_demo(
     * ``cam_kf``: :class:`ekf.KFTracker`, camera-only baseline
     * ``rad_kf``: :class:`ekf.KFTracker`, Cartesian radar-only baseline
 
+    ``backend`` selects the compute core: ``"python"`` (filterpy reference) or
+    ``"cpp"`` (the compiled C++ core via pybind11). The two produce identical
+    results to machine precision; ``"cpp"`` demonstrates the deployment path.
+
     The returned structure is a plain *serializable-friendly* map with NumPy
     arrays so notebooks can introspect the same data as the CLI demo.
     """
     rng = rng or default_rng(DEMO_RNG_SEED)
+    KFClass, EKFClass = _select_tracker_classes(backend)
     true_xy = _make_smooth_curved_trajectory(TRAJECTORY_NUM_FRAMES)
     # Both simulators share the same rng stream for whole-scene determinism.
     # INTERVIEW: this means camera drains RNG first, then radar; a true per-sensor
@@ -129,17 +157,17 @@ def run_fusion_demo(
 
     x0 = _initial_state_from_ground_truth(true_xy, FUSION_FRAME_DT_S, rng)
     # Linear KF with Cartesian radar (existing baseline)
-    fused = ekf.KFTracker(
+    fused = KFClass(
         x0, dt=FUSION_FRAME_DT_S, r_camera=r_cam, r_radar=r_radar
     )
     # EKF with polar radar (the main upgrade)
-    ekf_fused = ekf.EKFTracker(
+    ekf_fused = EKFClass(
         x0, dt=FUSION_FRAME_DT_S, r_camera=r_cam, r_radar_polar=r_radar_polar
     )
-    cam_kf = ekf.KFTracker(
+    cam_kf = KFClass(
         x0, dt=FUSION_FRAME_DT_S, r_camera=r_cam, r_radar=r_radar
     )
-    rad_kf = ekf.KFTracker(
+    rad_kf = KFClass(
         x0, dt=FUSION_FRAME_DT_S, r_camera=r_cam, r_radar=r_radar
     )
 
@@ -334,5 +362,17 @@ def plot_results(
 
 
 if __name__ == "__main__":
-    out = run_fusion_demo()
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Single-target multi-sensor fusion demo.")
+    parser.add_argument(
+        "--backend",
+        choices=["python", "cpp"],
+        default="python",
+        help="Filter compute core: 'python' (filterpy reference) or 'cpp' (compiled C++ core).",
+    )
+    args = parser.parse_args()
+
+    print(f"Running fusion demo on the '{args.backend}' backend...")
+    out = run_fusion_demo(backend=args.backend)
     plot_results(out, show=True)

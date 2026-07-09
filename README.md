@@ -24,6 +24,12 @@ cd /path/to/fusiontrack
 python -m src.fusion
 ```
 
+The same demo can run its filters on the **C++ core** instead of the Python reference (identical results to machine precision), once the pybind11 module is built (see [`cpp/README.md`](cpp/README.md)):
+
+```bash
+python -m src.fusion --backend cpp
+```
+
 Multi-object tracker demo (prints metrics, shows static plot, and saves `mot_demo.gif`):
 
 ```bash
