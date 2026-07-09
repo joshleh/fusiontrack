@@ -114,7 +114,7 @@ Its eigenvectors point along the principal axes of the uncertainty ellipse; the 
 
 **tr(P$_{xy}$)** = $\sigma_x^2 + \sigma_y^2$, a scalar "total spread," used in the fusion plots. It is *not* the area of the ellipse (area $= \pi a_1 a_2 = \pi \sqrt{\det P_{xy}} \cdot \chi^2$ scale). Two filters can have equal trace but very different ellipse shapes (one elongated vs. circular); the full matrix matters.
 
-**NEES (Normalized Estimation Error Squared):** the proper consistency check. $\text{NEES} = (x - \hat x)^T P^{-1} (x - \hat x)$ should be chi-square distributed with $d$ DOF for a consistent filter. A NEES that trends upward means $P$ is *optimistic* (filter thinks it's better than it is). This repository does not compute NEES; it's the natural next diagnostic step.
+**NEES (Normalized Estimation Error Squared):** the proper consistency check. $\text{NEES} = (x - \hat x)^T P^{-1} (x - \hat x)$ should be chi-square distributed with $d$ DOF for a consistent filter. A NEES that trends upward means $P$ is *optimistic* (filter thinks it's better than it is). The demo now computes the position NEES (2 DOF) every frame via `ekf.compute_nees_2d` and reports the time-averaged NEES against its 95% chi-square acceptance interval (`ekf.nees_consistency_interval`); a matching C++ `nees_2d` lives in the C++ core. On the straight-line matched-model case the average NEES sits at ~2 (consistent), but on the demo's **maneuvering** sine-curve trajectory it is far above the interval — the constant-velocity model with $\sigma_a = 0.25$ underestimates the maneuver, so $P$ is optimistic. This is exactly the diagnostic that motivates a coordinated-turn or IMM model (see §2).
 
 ---
 

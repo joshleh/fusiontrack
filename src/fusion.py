@@ -178,6 +178,8 @@ def run_fusion_demo(
     rad_path = np.zeros((n, 2), dtype=np.float64)
     kf_trace_p = np.zeros(n, dtype=np.float64)
     ekf_trace_p = np.zeros(n, dtype=np.float64)
+    # Per-frame position NEES for the EKF fused tracker (consistency diagnostic)
+    ekf_nees = np.zeros(n, dtype=np.float64)
     cam_meas_world = np.full((n, 2), np.nan, dtype=np.float64)
     rad_meas_world = np.full((n, 2), np.nan, dtype=np.float64)
     # Ellipses stored during the loop: one set per tracker, no second RNG pass
@@ -237,6 +239,11 @@ def run_fusion_demo(
         rad_path[k, :] = rad_kf.get_state()[:2]
         kf_trace_p[k] = float(np.trace(fused.get_covariance()))
         ekf_trace_p[k] = float(np.trace(ekf_fused.get_covariance()))
+        # NEES against ground-truth position using the EKF's own 2x2 position
+        # covariance: does the filter's reported uncertainty match reality?
+        ekf_nees[k] = ekf.compute_nees_2d(
+            true_xy[k, :2], ekf_fused.get_state()[:2], ekf_fused.get_position_covariance_2d()
+        )
         if k % ELLIPSE_FRAME_STEP == 0:
             kf_ellipses.append((k, fused.get_uncertainty_ellipse()))
             ekf_ellipses.append((k, ekf_fused.get_uncertainty_ellipse()))
@@ -251,6 +258,11 @@ def run_fusion_demo(
         "ekf_fused": ekf_fused_path,
         "ekf_cov_trace": ekf_trace_p,
         "ekf_uncertainty_ellipses": ekf_ellipses,
+        # EKF consistency diagnostic: per-frame NEES, its time-average, and the
+        # 95% chi-square acceptance interval for the average.
+        "ekf_nees": ekf_nees,
+        "ekf_anees": float(np.mean(ekf_nees)),
+        "nees_interval_95": ekf.nees_consistency_interval(n, dof=2, confidence=0.95),
         # Single-modality baselines
         "camera_only": cam_path,
         "radar_only": rad_path,
@@ -375,4 +387,16 @@ if __name__ == "__main__":
 
     print(f"Running fusion demo on the '{args.backend}' backend...")
     out = run_fusion_demo(backend=args.backend)
+
+    anees = out["ekf_anees"]
+    low, high = out["nees_interval_95"]
+    verdict = (
+        "consistent" if low <= anees <= high
+        else ("optimistic (overconfident P)" if anees > high else "conservative (inflated P)")
+    )
+    print(
+        f"EKF position NEES: average {anees:.2f} (target 2.0), "
+        f"95% interval [{low:.2f}, {high:.2f}] -> {verdict}"
+    )
+
     plot_results(out, show=True)

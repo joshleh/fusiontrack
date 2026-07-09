@@ -206,3 +206,61 @@ def test_ekf_tracker_ellipse_center_matches_state() -> None:
     assert ell.center[0] == pytest.approx(float(st[0]))
     assert ell.center[1] == pytest.approx(float(st[1]))
     assert ell.width > 0 and ell.height > 0
+
+
+# ---------------------------------------------------------------------------
+# NEES consistency check
+# ---------------------------------------------------------------------------
+
+
+def test_compute_nees_2d_diagonal_quadratic_form() -> None:
+    """NEES with a diagonal P is the sum of squared per-axis standardized errors."""
+    p = np.diag([4.0, 9.0])
+    e_true = np.array([2.0, 3.0])
+    e_est = np.array([0.0, 0.0])
+    # 2^2/4 + 3^2/9 = 1 + 1 = 2
+    assert ekf.compute_nees_2d(e_true, e_est, p) == pytest.approx(2.0)
+
+
+def test_compute_nees_2d_identity_covariance() -> None:
+    """With P = I, NEES reduces to the squared L2 error."""
+    p = np.eye(2)
+    assert ekf.compute_nees_2d(np.array([3.0, 4.0]), np.zeros(2), p) == pytest.approx(25.0)
+
+
+def test_nees_consistency_interval_brackets_dof_and_tightens() -> None:
+    """The 95% average-NEES interval must contain the DOF and narrow as N grows."""
+    lo_small, hi_small = ekf.nees_consistency_interval(20, dof=2)
+    lo_big, hi_big = ekf.nees_consistency_interval(2000, dof=2)
+    assert lo_small < 2.0 < hi_small
+    assert lo_big < 2.0 < hi_big
+    assert (hi_big - lo_big) < (hi_small - lo_small)
+
+
+def test_nees_is_consistent_when_process_model_matches_truth() -> None:
+    """
+    On a straight-line constant-velocity target -- exactly the model the KF
+    assumes -- with measurement noise matched to R, the time-averaged NEES must
+    sit near the 2-DOF target. This both validates ``compute_nees_2d`` and shows
+    that a *large* NEES elsewhere is model mismatch, not a bug.
+    """
+    rng = np.random.default_rng(0)
+    dt, n = 1.0, 200
+    vx, vy = 3.0, 1.5
+    true = np.zeros((n, 2))
+    true[0] = [50.0, 50.0]
+    for k in range(1, n):
+        true[k] = true[k - 1] + [vx * dt, vy * dt]
+    r_cam = 16.0 * np.eye(2)  # 4 m 1-sigma
+    tr = ekf.KFTracker(np.array([true[0, 0], true[0, 1], vx, vy]), dt=dt, r_camera=r_cam)
+    nees_samples = []
+    for k in range(n):
+        tr.predict()
+        z = true[k] + rng.normal(0.0, 4.0, size=2)
+        tr.update_camera(z)
+        if k > 20:  # skip the cold-start convergence transient
+            nees_samples.append(
+                ekf.compute_nees_2d(true[k], tr.get_state()[:2], tr.get_position_covariance_2d())
+            )
+    anees = float(np.mean(nees_samples))
+    assert 1.0 < anees < 3.0, f"matched-model ANEES={anees:.2f} should be ~2"

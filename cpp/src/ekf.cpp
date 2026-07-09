@@ -120,6 +120,13 @@ Meas radar_polar_residual(const Meas& z, const Meas& hx) {
     return y;
 }
 
+double nees_2d(const Meas& error, const MeasCov& P) {
+    const MeasCov P_inv = inverse2x2(P);
+    const Mat<1, 2> et = transpose(error);
+    const Mat<1, 1> q = et * (P_inv * error);
+    return q(0, 0);
+}
+
 // --- KfTracker -------------------------------------------------------------
 KfTracker::KfTracker(const State& initial_state, double dt)
     : x_(initial_state),

@@ -66,6 +66,11 @@ Mat<2, 4> h_radar_polar_jacobian(const State& x);
 // Mandatory whenever a bearing appears in the residual.
 Meas radar_polar_residual(const Meas& z, const Meas& hx);
 
+// Position-marginal NEES: e^T P^{-1} e for the 2D error e = x_true - x_est.
+// Chi-square(2)-distributed (expected value 2) for a consistent filter; a value
+// persistently above 2 means the reported covariance P is optimistic.
+double nees_2d(const Meas& error, const MeasCov& P);
+
 // 95% confidence ellipse of the position marginal.
 struct UncertaintyEllipse2D {
     double cx, cy;      // centre

@@ -189,6 +189,25 @@ static void test_covariance_symmetric_after_update() {
             CHECK_NEAR(P(i, j), P(j, i), 1e-9);
 }
 
+// Position NEES equals the quadratic form e^T P^{-1} e.
+static void test_nees_2d() {
+    ft::MeasCov p;  // diag(4, 9)
+    p(0, 0) = 4.0;
+    p(1, 1) = 9.0;
+    ft::Meas e;
+    e(0, 0) = 2.0;
+    e(1, 0) = 3.0;
+    CHECK_NEAR(ft::nees_2d(e, p), 2.0, 1e-12);  // 4/4 + 9/9
+
+    ft::MeasCov identity;
+    identity(0, 0) = 1.0;
+    identity(1, 1) = 1.0;
+    ft::Meas e2;
+    e2(0, 0) = 3.0;
+    e2(1, 0) = 4.0;
+    CHECK_NEAR(ft::nees_2d(e2, identity), 25.0, 1e-12);  // 3^2 + 4^2
+}
+
 int main() {
     std::printf("FusionTrack C++ core tests\n");
     test_predict_advances_position();
@@ -201,6 +220,7 @@ int main() {
     test_innovation_gating_query();
     test_inverse2x2();
     test_covariance_symmetric_after_update();
+    test_nees_2d();
 
     std::printf("\n%d checks, %d failures\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;

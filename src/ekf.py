@@ -475,3 +475,55 @@ class EKFTracker:
         S = H @ P @ H.T + self._R_radar_polar     # (2, 2)
         y = _radar_polar_residual(z_polar.reshape(2, 1), hx)  # (2, 1)
         return y, S
+
+
+# ---------------------------------------------------------------------------
+# Filter consistency: NEES (Normalized Estimation Error Squared)
+# ---------------------------------------------------------------------------
+
+def compute_nees_2d(
+    true_xy: NDArray[np.float64],
+    est_xy: NDArray[np.float64],
+    cov_xy: NDArray[np.float64],
+) -> float:
+    """
+    Position-marginal NEES for one frame: :math:`e^T P^{-1} e` with
+    :math:`e = x_{\\text{true}} - \\hat{x}` in the (x, y) plane.
+
+    For a **consistent** filter this is chi-square distributed with 2 DOF, so
+    its expected value is 2. NEES persistently above 2 means ``P`` is optimistic
+    (the filter is overconfident); persistently below 2 means ``P`` is
+    conservative.
+
+    # INTERVIEW CRITICAL: unlike tr(P) -- which is only the filter's *own*
+    # self-assessment -- NEES uses ground truth to check whether P is honest.
+    # A NEES that trends upward is the classic signature of an optimistic filter.
+    """
+    e = np.asarray(true_xy, dtype=np.float64).reshape(2) - np.asarray(
+        est_xy, dtype=np.float64
+    ).reshape(2)
+    p = np.asarray(cov_xy, dtype=np.float64).reshape(2, 2)
+    return float(e @ np.linalg.solve(p, e))
+
+
+def nees_consistency_interval(
+    num_samples: int, *, dof: int = 2, confidence: float = 0.95
+) -> Tuple[float, float]:
+    """
+    Two-sided acceptance interval for the **time-averaged** NEES.
+
+    Under the consistency hypothesis each frame's NEES is chi-square with ``dof``
+    DOF, so the sum of ``N`` (assumed independent) samples is chi-square with
+    ``N * dof`` DOF; dividing by ``N`` gives an interval that tightens around
+    ``dof`` as ``N`` grows. If the run's average NEES falls inside this band the
+    filter is statistically consistent at the given confidence level.
+
+    Returns ``(low, high)`` for the average NEES. See Bar-Shalom §5.4.
+    """
+    from scipy.stats import chi2
+
+    n = max(int(num_samples), 1)
+    alpha = 1.0 - confidence
+    low = float(chi2.ppf(alpha / 2.0, dof * n) / n)
+    high = float(chi2.ppf(1.0 - alpha / 2.0, dof * n) / n)
+    return low, high

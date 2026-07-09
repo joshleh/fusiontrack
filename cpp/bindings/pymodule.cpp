@@ -61,6 +61,14 @@ using OptR = std::optional<std::array<double, 4>>;
 PYBIND11_MODULE(fusiontrack_cpp, m) {
     m.doc() = "FusionTrack C++ tracking core (KF + EKF)";
 
+    // Position-marginal NEES: e^T P^{-1} e (P as row-major [r00, r01, r10, r11]).
+    m.def(
+        "nees_2d",
+        [](const std::array<double, 2>& error, const std::array<double, 4>& p) {
+            return ft::nees_2d(to_meas(error), to_meascov(p));
+        },
+        py::arg("error"), py::arg("p"));
+
     py::class_<ft::KfTracker>(m, "KfTracker")
         .def(py::init([](const std::array<double, 4>& x0, double dt) {
                  return ft::KfTracker(to_state(x0), dt);
