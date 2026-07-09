@@ -40,6 +40,8 @@ Pedagogical notebook (step-by-step prints, inline plots, cov-trace panel):
 jupyter notebook notebooks/01_fusion_demo.ipynb
 ```
 
+
+
 ## Usage
 
 
@@ -55,6 +57,8 @@ jupyter notebook notebooks/01_fusion_demo.ipynb
 | `docs/ekf_explainer.md` | Matrix cheat-sheet (placeholders for your interview notes)                                                                                      |
 
 
+
+
 ## Two trackers: KFTracker vs EKFTracker
 
 `src/ekf.py` now provides **both**:
@@ -68,12 +72,14 @@ jupyter notebook notebooks/01_fusion_demo.ipynb
 
 The EKF radar update avoids the linearization error that the Cartesian approximation introduces at large azimuth offsets or long range.  Camera measurements stay linear (they are already in world Cartesian after the pixel → metre mapping in `utils`).
 
-**Interview notes (marked `# INTERVIEW CRITICAL` in code)**
+**Interview notes (marked** `# INTERVIEW CRITICAL` **in code)**
 
 - Jacobian is evaluated at the **predicted** state → linearization error grows for large prediction steps or sharp turns → a UKF sigma-point approach avoids this.
 - Angle wrapping in the innovation ($y_\theta \in (-\pi, \pi]$) is mandatory whenever a bearing appears; identical issue in SLAM, GPS/compass fusion, quaternion EKF.
 - Sequential two-update-per-frame (camera then radar) is *not* equivalent to a single joint update unless measurements are conditionally independent given the state; acceptable for tutorial, production uses gating + MHT.
 - `tr(P)` shrinks after a good update, but it is not a geometric “area”  -  use NEES or the full ellipse for consistency checking.
+
+
 
 ## Multi-Object Tracking (MOT)
 
