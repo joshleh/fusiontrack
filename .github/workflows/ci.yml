@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-tests:
+    name: Python tests (${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.11"]
+    env:
+      MPLBACKEND: Agg
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Run pytest
+        run: pytest tests/ -q
+
+  cpp-core:
+    name: C++ core (ctest, no dependencies)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S cpp -B cpp/build -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build cpp/build -j
+      - name: Test
+        run: ctest --test-dir cpp/build --output-on-failure
+
+  cpp-python-integration:
+    name: C++/Python integration (bindings + cross-validation)
+    runs-on: ubuntu-latest
+    env:
+      MPLBACKEND: Agg
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pybind11
+      - name: Build C++ core with pybind11 bindings
+        run: |
+          cmake -S cpp -B cpp/build -DCMAKE_BUILD_TYPE=Release \
+            -DFUSIONTRACK_PYBIND=ON \
+            -Dpybind11_DIR=$(python -c "import pybind11; print(pybind11.get_cmake_dir())")
+          cmake --build cpp/build -j
+      - name: C++ unit tests
+        run: ctest --test-dir cpp/build --output-on-failure
+      - name: Cross-validate C++ core against Python reference
+        run: python cpp/tests/crossvalidate.py
+      - name: Smoke-test the fusion demo on the C++ backend
+        run: python -m src.fusion --backend cpp
