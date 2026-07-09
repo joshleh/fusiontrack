@@ -228,6 +228,7 @@
     <li><a href="#demo">Demo</a></li>
     <li><a href="#architecture">How it works</a></li>
     <li><a href="#results">Results</a></li>
+    <li><a href="#engineering">Engineering</a></li>
     <li><a href="https://github.com/joshleh/fusiontrack" target="_blank">GitHub</a></li>
   </ul>
 </nav>
@@ -493,6 +494,61 @@ pip install -r requirements.txt
 
 <span class="cm"># 29 automated tests</span>
 pytest tests/ -q
+    </div>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- ── Engineering & deployment ── -->
+<section id="engineering">
+  <div class="section-title">Built for deployment</div>
+  <p class="section-sub">Beyond the prototype: a real-time C++ core, proven to match the Python reference, with consistency checks and continuous integration.</p>
+
+  <div class="plain-box">
+    <div class="plain-box-label">Plain English</div>
+    <p>Everything above is the research prototype, written in Python for fast iteration and clear plots. Real trackers ship in <strong>C++</strong>, so the single-target filter math is reimplemented as a dependency-free, allocation-free C++ core — the version you'd actually run on hardware — and automatically checked to produce the <em>same numbers</em> as the Python version to about 14 decimal places. The multi-object logic (matching signals to drones) stays in Python.</p>
+  </div>
+
+  <div class="card-grid">
+    <div class="card">
+      <span class="card-icon">⚙️</span>
+      <h3>Dependency-free C++17 core</h3>
+      <p>The Kalman/EKF filter is reimplemented with fixed-size, heap-free math — no external libraries, no dynamic allocation. That's the property a real-time payload needs: deterministic timing with no memory-management jitter.</p>
+      <p class="tech-note">Technical: compile-time-sized matrices (<code>std::array</code>), Joseph-form covariance update, and a closed-form 2×2 inverse (the only inversion a Kalman update needs). Single-target KF/EKF; MOT stays in Python.</p>
+    </div>
+    <div class="card">
+      <span class="card-icon">🔬</span>
+      <h3>Verified equivalent to Python</h3>
+      <p>The C++ core is exposed back to Python and run through the exact same scenario as the reference filter. The two agree to machine precision, so the C++ version is provably the <em>same</em> filter — not a re-approximation that might drift.</p>
+      <p class="tech-note">Technical: pybind11 bindings; cross-validation harness reports a max state difference of <strong>5.7&nbsp;×&nbsp;10⁻¹⁴</strong> over 60 frames of camera + polar-radar updates.</p>
+    </div>
+    <div class="card">
+      <span class="card-icon">📐</span>
+      <h3>Consistency-checked (NEES)</h3>
+      <p>Being close on average isn't enough — the filter also has to be honest about <em>how confident</em> it is. A NEES check compares the reported uncertainty against ground truth every frame, catching over-confidence that a plain error metric would miss.</p>
+      <p class="tech-note">Technical: position NEES (2 DOF) vs. a 95% χ² interval. It flagged the constant-velocity model as optimistic on the maneuvering path — motivating a coordinated-turn / IMM model.</p>
+    </div>
+    <div class="card">
+      <span class="card-icon">✅</span>
+      <h3>Continuous integration</h3>
+      <p>Every push runs the full verification on GitHub — Python tests, C++ tests, the equivalence check, and a headless demo — so a regression can't slip in unnoticed. CI already earned its keep by catching a Linux-only build bug.</p>
+      <p class="tech-note">Technical: GitHub Actions matrix (Python 3.9/3.11 pytest, ctest, cross-validation, demo smoke test). Caught a Linux <code>-fPIC</code> link error that didn't reproduce on macOS.</p>
+    </div>
+  </div>
+
+  <br>
+
+  <div class="result-card">
+    <h4>Build &amp; run the C++ core</h4>
+    <div class="code-block">
+<span class="cm"># Build the dependency-free core and run the C++ unit tests</span>
+cmake -S cpp -B cpp/build &amp;&amp; cmake --build cpp/build -j
+ctest --test-dir cpp/build --output-on-failure
+
+<span class="cm"># Optional: build the Python bindings, then run the same demo on the C++ core</span>
+pip install pybind11
+<span class="kw">python</span> -m src.fusion --backend cpp
     </div>
   </div>
 </section>
